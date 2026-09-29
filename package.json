@@ -4,12 +4,29 @@
   "private": true,
   "description": "Automatisierbare Prüfungshandlungen (Stichproben, Analytik) für die Wirtschaftsprüfung",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "devDependencies": {
     "@types/node": "^22",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "lucide-react": "^1.48.0"
   }
 }

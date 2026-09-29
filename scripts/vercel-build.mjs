@@ -1,5 +1,6 @@
 // scripts/vercel-build.mjs
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -14,18 +15,26 @@ const fail = (msg) => { console.error(`[FAIL] ${msg}`); process.exit(1); };
 
 log('Start Vercel Build Script');
 
-try {
-  log('1. Prisma: Generiere Client…');
-  execSync('npx prisma generate', { stdio: 'inherit' });
-} catch (e) {
-  fail('Prisma-Client-Generierung fehlgeschlagen.');
+const hatPrisma = existsSync(join(rootDir, 'prisma', 'schema.prisma'));
+
+if (hatPrisma) {
+  try {
+    log('1. Prisma: Generiere Client…');
+    execSync('npx prisma generate', { stdio: 'inherit' });
+  } catch {
+    fail('Prisma-Client-Generierung fehlgeschlagen.');
+  }
+} else {
+  log('1. Prisma: kein Schema vorhanden, Schritt übersprungen.');
 }
 
-if (process.env.DIRECT_URL || process.env.DATABASE_URL) {
+if (!hatPrisma) {
+  log('2. Migrationen: kein Prisma-Schema, Schritt übersprungen.');
+} else if (process.env.DIRECT_URL || process.env.DATABASE_URL) {
   try {
     log('2. Prisma: Führe Migrationen aus…');
     execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-  } catch (e) {
+  } catch {
     fail('Prisma-Migration fehlgeschlagen.');
   }
 } else {
@@ -36,7 +45,7 @@ if (process.env.DIRECT_URL || process.env.DATABASE_URL) {
 try {
   log('3. Next.js Build…');
   execSync('npx next build', { stdio: 'inherit' });
-} catch (e) {
+} catch {
   fail('Next.js-Build fehlgeschlagen.');
 }
 
