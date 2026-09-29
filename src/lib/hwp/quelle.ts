@@ -12,3 +12,12 @@ export function hwpZitat(rz: number | number[], teil = "Teil III"): string {
   const liste = Array.isArray(rz) ? rz : [rz];
   return `${HWP_TITEL}, ${teil} Rz. ${liste.join(", ")}`;
 }
+
+/**
+ * ISA-CH 240 «Verantwortlichkeiten des Abschlussprüfers bei dolosen Handlungen» (gültig für Prüfungen von Abschlüssen für
+ * Zeiträume, die am oder nach dem 15.12.2022 enden). Auch dieser Standard ist urheberrechtlich geschützt: Der Code enthält
+ * nur Randziffern-Verweise und eigene Kurzformulierungen. Es handelt sich NICHT um die überarbeitete Fassung ISA 240 (Revised).
+ */
+export const ISA_CH_240 = "ISA-CH 240 (gültig ab 15.12.2022)";
+
+export const isaZitat = (tz: string): string => `${ISA_CH_240}, Tz. ${tz}`;

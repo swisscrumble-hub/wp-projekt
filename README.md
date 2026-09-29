@@ -10,7 +10,7 @@ Web-App für automatisierbare Prüfungshandlungen der ordentlichen Revision. Auf
 |---|---|---|
 | `/einzelfall` **Einzelfallprüfung** | Einzelfallprüfung aus dem Katalog wählen (Aktiven, Passiven, Erfolgsrechnung) → Excel hochladen → Grundgesamtheit abstimmen → Umfang festlegen (MUS-Formel, 95 % Standard) → Stichprobe ziehen → Auswertung (obere Fehlergrenze bzw. Hochrechnung) | HWP Teil III.4.9 (Katalog), III.4.5 (Stichproben), Rz. 792 (Hochrechnung) |
 | `/kontrolle` **Kontrollprüfung** | Kontrolle wählen (Beispielkontrollen je Prozess oder eigene) → Excel mit Vorgängen hochladen → automatische Datenprüfung über alle Vorgänge (Funktionstrennung, Freigabe fehlt, Freigabe verspätet) → Stichprobe über den Prüfzeitraum → Auswertung der Abweichungen | HWP Teil III.4.2 (Funktionsprüfungen), Rz. 303–308, 600–603, 764, 794–796 |
-| `/journal` **Journalprüfung** | Journal als Excel hochladen → Stichtag und Schwellen festlegen → Buchungen nach definierten Merkmalen erhöhten Risikos bewerten → Auswahl (risikobasiert plus Zufallsanteil) | HWP Teil III.3.9.4.2 Rz. 374–377 (Merkmale aus ISA-CH 240) |
+| `/journal` **Journalprüfung** | Journal als Excel hochladen → Stichtag und Schwellen festlegen → Buchungen nach definierten Merkmalen erhöhten Risikos bewerten → Auswahl (risikobasiert plus Zufallsanteil) | ISA-CH 240 Tz. 33(a), A42–A45 (Merkmale in A44); HWP Teil III.3.9.4.2 Rz. 374–377 |
 
 Going Concern ist bewusst nicht enthalten.
 
@@ -25,7 +25,7 @@ Jede Auswahl liefert eine **Dokumentationsnotiz** (Methode, Seed, Umfang, Grundg
 - **Urheberrecht:** Der Katalog (`src/lib/hwp/`) enthält keine Textauszüge aus dem Handbuch, sondern eigene Kurzformulierungen mit Randziffer. Die Randziffern wurden am Handbuch (Ausgabe 2024) geprüft; Auswahl und Formulierung sind eine Arbeitshilfe, kein Ersatz für das Handbuch.
 - **Kontrollen:** Das Handbuch enthält keinen Katalog konkreter Schlüsselkontrollen. Die Kontrollen sind **Beispiele (eigener Vorschlag)** und an das Mandat anzupassen; aus dem Handbuch stammen Kontrollarten und Prüfungshandlungen.
 - **Stichprobenumfang bei Kontrollen:** Die Staffelung nach Häufigkeit (1/1/2/5/25, sonst 10 %, höchstens 40) stammt aus den Q&A des Handbuchs zur CMS-Prüfung (PS-CH 980); die Übertragung auf IKS-Funktionsprüfungen ist durch den Prüfer zu bestätigen. Alternativ: statistische Attributprüfung.
-- **ISA 240 (Revised):** Die Journal-Kriterien folgen Rz. 375 (ISA-CH 240). Der Abgleich mit dem Wortlaut von ISA 240 (Revised) war nicht Teil der Unterlagen und ist vom Prüfer vorzunehmen.
+- **ISA-CH 240 statt ISA 240 (Revised):** Die Journal-Kriterien folgen ISA-CH 240 (gültig ab 15.12.2022), Tz. 33(a) und A44. Wochenende/Feiertag und Wiederholungen stehen nur im HWP (Rz. 375) und sind als «ergänzend» abschaltbar. Die überarbeitete Fassung ISA 240 (Revised) lag nicht vor; ein Abgleich ist vom Prüfer vorzunehmen. Buchungen zum Periodenende sind Pflichtbestandteil der Auswahl (Tz. 33(a)(ii)); die Befragung nach Tz. 33(a)(i) und die Erwägung nach (iii) werden in der Notiz dokumentiert.
 - MUS-Umfang und Stringer-Grenze setzen erwartete Fehler = 0 voraus; Unterbewertungen werden ausgewiesen, nicht saldiert.
 - Alle Ergebnisse sind rechnerische Vorschläge und **Prüfhinweise, keine Urteile**. Umfang, Methode und Würdigung liegen beim Prüfer.
 - Zugang: ein Passwort für alle, keine Benutzerverwaltung. Die Bremse gegen Fehlversuche liegt im Speicher je Server-Instanz. Für echte Mandantendaten und mehrere Personen ist eine Benutzerverwaltung nötig.

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { KRITERIEN, KRITERIUM_IDS, pruefeJournal, waehleJournal, type JournalAuswahl, type JournalErgebnis } from "@/lib/pruefung/journalpruefung";
 import { baueNotiz } from "@/lib/dokumentation";
-import { hwpZitat } from "@/lib/hwp/quelle";
+import { hwpZitat, isaZitat } from "@/lib/hwp/quelle";
 import type { ImportErgebnis, Importiert, Spalten } from "@/lib/import";
 import { istIsoDatum } from "@/lib/pruefung/datum";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
@@ -11,7 +11,7 @@ import ExcelImport from "@/components/ExcelImport";
 import Abstimmung from "@/components/Abstimmung";
 import { Daten, Fehler, Feld, Hinweise, Karte, Knopf, Schritt, Tabelle, num } from "@/components/ui";
 
-const ZITAT = hwpZitat([374, 375, 376, 377]);
+const ZITAT = `${isaZitat("33(a), A42–A45")}; ${hwpZitat([374, 375, 376, 377])}`;
 const liste = (s: string) => s.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
 
 export default function JournalSeite() {
@@ -24,6 +24,10 @@ export default function JournalSeite() {
   const [seltenErfasser, setSeltenErfasser] = useState("1");
   const [rundung, setRundung] = useState("1000");
   const [minRund, setMinRund] = useState("10000");
+  const [ergaenzend, setErgaenzend] = useState(true);
+  const [periode, setPeriode] = useState("30");
+  const [befragung, setBefragung] = useState("");
+  const [gesamtzeitraum, setGesamtzeitraum] = useState("");
   const [n, setN] = useState("25");
   const [zufall, setZufall] = useState("20");
   const [seed, setSeed] = useState(() => String(Math.floor(Math.random() * 1_000_000)));
@@ -46,19 +50,24 @@ export default function JournalSeite() {
         seltenErfasserAnteil: num(seltenErfasser) / 100,
         rundung: num(rundung),
         minRundbetrag: num(minRund),
+        ergaenzendeKriterien: ergaenzend,
       });
-      const a = waehleJournal(r, Number(n), Number(seed), num(zufall) / 100);
+      const a = waehleJournal(r, Number(n), Number(seed), num(zufall) / 100, num(periode) / 100);
       const notiz = baueNotiz({
         bereich: "Journalprüfung",
         handlung: "Journal Entry Testing: Auswahl nach Merkmalen erhöhten Risikos",
-        norm: `${ZITAT} (Merkmale aus ISA-CH 240; Abgleich mit ISA 240 (Revised) durch den Prüfer)`,
+        norm: `${ZITAT} (nicht die überarbeitete Fassung ISA 240 (Revised))`,
         datei: quelle.name,
         grundgesamtheit: { anzahl: posten.length, wert: quelle.ergebnis.kontrolle.summeAbsolut },
-        methode: `Risikobasiert nach Score (${a.risikobasiert.length}) plus Zufallsauswahl (${a.zufaellig.length})`,
+        methode: `Periodenende/nachträglich (${a.periodenende.length}), risikobasiert nach Score (${a.risikobasiert.length}), Zufallsauswahl (${a.zufaellig.length})`,
         seed: Number(seed),
         umfang: a.ausgewaehlt.length,
         zusatz: [
           `Stichtag: ${stichtag}, Fenster Periodenende: ${fenster} Tage`,
+          `Tz. 33(a)(i) Befragung der am Rechnungslegungsprozess Beteiligten: ${befragung.trim() || "nicht dokumentiert"}`,
+          `Tz. 33(a)(ii) Auswahl zum Ende des Berichtszeitraums: ${a.periodenende.length} Buchungen`,
+          `Tz. 33(a)(iii) Erwägung, Buchungen des gesamten Berichtszeitraums zu prüfen: ${gesamtzeitraum.trim() || "nicht dokumentiert"}`,
+          `Ergänzende Kriterien aus dem HWP (Wochenende/Feiertag, Wiederholungen): ${ergaenzend ? "angewandt" : "nicht angewandt"}`,
           `Angewandte Kriterien: ${KRITERIUM_IDS.filter((k) => r.abdeckung[k].geprueft > 0).map((k) => KRITERIEN[k].titel).join("; ") || "keine"}`,
           `Nicht prüfbare Kriterien: ${KRITERIUM_IDS.filter((k) => r.abdeckung[k].geprueft === 0).map((k) => KRITERIEN[k].titel).join("; ") || "keine"}`,
           ...(r.anteilManuell !== undefined ? [`Anteil manueller Buchungen: ${(r.anteilManuell * 100).toFixed(1)} %`] : []),
@@ -81,7 +90,7 @@ export default function JournalSeite() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-slate-900">Journalprüfung</h1>
       <p className="text-sm text-slate-600">
-        Journal Entry Testing nach definierten Merkmalen erhöhten Risikos dolosen Handelns (HWP OR 2024, Teil III Rz. 374–377, mit den Beispielen aus ISA-CH 240). Der Abgleich mit ISA 240 (Revised) ist durch den Prüfer vorzunehmen; Schwellen sind Parameter.
+        Journal Entry Testing nach den Merkmalen manipulierter Journalbuchungen in ISA-CH 240 (Tz. 33(a), A42–A45; Ausgabe gültig ab 15.12.2022), ergänzt um zwei Merkmale aus dem HWP (Rz. 375). Es ist nicht die überarbeitete Fassung ISA 240 (Revised); deren Abgleich und die Schwellen legt der Prüfer fest.
       </p>
 
       <div className="space-y-3">
@@ -107,10 +116,11 @@ export default function JournalSeite() {
           <div className="space-y-3">
             <Schritt nr={2} titel="Kriterien festlegen und Auswahl ziehen" />
             <Karte titel="Parameter" norm={ZITAT}>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Feld label="Stichtag (Geschäftsjahresende)" placeholder="2025-12-31" value={stichtag} onChange={(e) => setStichtag(e.target.value)} />
                 <Feld label="Umfang der Auswahl" inputMode="numeric" value={n} onChange={(e) => setN(e.target.value)} hilfe="Pflichtgemässes Ermessen (Rz. 377)" />
-                <Feld label="Davon Zufallsanteil (%)" inputMode="numeric" value={zufall} onChange={(e) => setZufall(e.target.value)} hilfe="Unvorhersehbarkeit; auch Buchungen ohne Treffer" />
+                <Feld label="Davon Zufallsanteil (%)" inputMode="numeric" value={zufall} onChange={(e) => setZufall(e.target.value)} hilfe="Unvorhersehbarkeit; deckt den ganzen Zeitraum ab (Tz. 33(a)(iii))" />
+                <Feld label="Davon Periodenende (%)" inputMode="numeric" value={periode} onChange={(e) => setPeriode(e.target.value)} hilfe="Buchungen zum Ende des Berichtszeitraums, Pflicht nach Tz. 33(a)(ii)" />
               </div>
               {stichtag && !istIsoDatum(stichtag) && <Fehler text="Der Stichtag ist kein gültiges Datum." />}
               <div className="grid gap-3 sm:grid-cols-2">
@@ -128,6 +138,14 @@ export default function JournalSeite() {
                   <Feld label="Seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} hilfe="Gleicher Seed = gleiche Zufallsauswahl" />
                 </div>
               </details>
+              <label className="flex min-h-11 touch-manipulation items-center gap-3 text-sm text-slate-800">
+                <input type="checkbox" className="h-6 w-6" checked={ergaenzend} onChange={(e) => setErgaenzend(e.target.checked)} />
+                Ergänzende Kriterien aus dem HWP anwenden (Wochenende/Feiertag, Wiederholungen; nicht im Text des ISA-CH 240)
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Daten label="Tz. 33(a)(i): Befragung der am Rechnungslegungsprozess Beteiligten" hilfe="Über unangemessene oder ungewöhnliche Aktivitäten bei Journalbuchungen: wen, wann, Ergebnis (geht in die Notiz)" value={befragung} onChange={(e) => setBefragung(e.target.value)} rows={3} />
+                <Daten label="Tz. 33(a)(iii): Erwägung, den gesamten Berichtszeitraum zu prüfen" hilfe="Entscheid und Begründung (geht in die Notiz)" value={gesamtzeitraum} onChange={(e) => setGesamtzeitraum(e.target.value)} rows={3} />
+              </div>
               <Knopf onClick={pruefen}>Journal prüfen und Auswahl ziehen</Knopf>
               <Fehler text={fehler} />
             </Karte>
@@ -136,8 +154,8 @@ export default function JournalSeite() {
           {ergebnis && (
             <Karte titel="Abdeckung der Kriterien" norm={ergebnis.normbezug}>
               <Tabelle
-                kopf={["Kriterium", "Geprüft", "Nicht prüfbar", "Treffer"]}
-                zeilen={KRITERIUM_IDS.map((k) => [KRITERIEN[k].titel, ergebnis.abdeckung[k].geprueft, ergebnis.abdeckung[k].nichtPruefbar, ergebnis.abdeckung[k].treffer])}
+                kopf={["Kriterium", "Quelle", "Geprüft", "Nicht prüfbar", "Treffer"]}
+                zeilen={KRITERIUM_IDS.map((k) => (ergebnis.abdeckung[k].aktiv ? [KRITERIEN[k].titel, KRITERIEN[k].quelle, ergebnis.abdeckung[k].geprueft, ergebnis.abdeckung[k].nichtPruefbar, ergebnis.abdeckung[k].treffer] : [KRITERIEN[k].titel, KRITERIEN[k].quelle, "ausgeschaltet", "–", "–"]))}
               />
               <Hinweise liste={ergebnis.hinweise} />
             </Karte>
@@ -145,8 +163,8 @@ export default function JournalSeite() {
 
           {ergebnis && auswahl && (
             <>
-              <Karte titel={`Auswahl: ${auswahl.a.ausgewaehlt.length} von ${ergebnis.anzahl} Buchungen`} norm={`${auswahl.a.risikobasiert.length} risikobasiert, ${auswahl.a.zufaellig.length} zufällig`}>
-                <AuswahlAnzeige posten={posten} ids={auswahl.a.ausgewaehlt} seed={auswahl.a.seed} methode="Journalprüfung (risikobasiert plus Zufall)" notiz={auswahl.notiz} dateiname={`journal-seed${auswahl.a.seed}.csv`} hinweise={auswahl.a.hinweise} bemerkung={bemerkung} />
+              <Karte titel={`Auswahl: ${auswahl.a.ausgewaehlt.length} von ${ergebnis.anzahl} Buchungen`} norm={`${auswahl.a.periodenende.length} Periodenende, ${auswahl.a.risikobasiert.length} risikobasiert, ${auswahl.a.zufaellig.length} zufällig`}>
+                <AuswahlAnzeige posten={posten} ids={auswahl.a.ausgewaehlt} seed={auswahl.a.seed} methode="Journalprüfung (Periodenende, risikobasiert, Zufall)" notiz={auswahl.notiz} dateiname={`journal-seed${auswahl.a.seed}.csv`} hinweise={auswahl.a.hinweise} bemerkung={bemerkung} />
               </Karte>
               <Karte titel="Buchungen mit den meisten Treffern" norm="Rangfolge nach Anzahl Kriterien, dann Betrag">
                 <Tabelle
