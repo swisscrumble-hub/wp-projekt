@@ -3,25 +3,35 @@
 import { useState } from "react";
 import { attributAuswertung, attributStichprobenumfang, monetaereAuswahl, musAuswertung, musStichprobenumfang, systematischeAuswahl, zufallsauswahl, type AuswahlErgebnis, type MusAuswertung } from "@/lib/pruefung/stichprobe";
 import { tabelleOhneKopf, zahlIn } from "@/lib/tabelle";
+import { auswahlAlsCsv, type ImportErgebnis, type Importiert } from "@/lib/import";
+import ExcelImport from "@/components/ExcelImport";
 import { Auswahl, Daten, Fehler, Feld, Hinweise, Karte, Knopf, Tabelle, chf } from "@/components/ui";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : "Unbekannter Fehler.");
 
-function AuswahlKarte({ onIntervall }: { onIntervall: (i: number) => void }) {
+function AuswahlKarte({ onIntervall, quelle, onQuelleLoeschen }: { onIntervall: (i: number) => void; quelle: { posten: Importiert[]; name: string } | null; onQuelleLoeschen: () => void }) {
   const [daten, setDaten] = useState("");
   const [methode, setMethode] = useState("monetaer");
   const [n, setN] = useState("25");
   const [seed, setSeed] = useState(() => String(Math.floor(Math.random() * 1_000_000)));
   const [ergebnis, setErgebnis] = useState<AuswahlErgebnis | null>(null);
+  const [gezogenAus, setGezogenAus] = useState<Importiert[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
 
   function ziehen() {
     try {
       setFehler(null);
-      const posten = tabelleOhneKopf(daten, 2, [1]).map((z, i) => ({ id: z[0]!, buchwert: zahlIn(z, 1, i + 1) }));
+      const herkunft: Importiert[] = quelle
+        ? quelle.posten
+        : tabelleOhneKopf(daten, 2, [1]).map((z, i) => {
+            const b = zahlIn(z, 1, i + 1);
+            return { id: z[0]!, excelZeile: i + 1, betrag: b, buchwert: b };
+          });
+      const posten = herkunft.map((p) => ({ id: p.id, buchwert: p.buchwert }));
       const umfang = Number(n);
       const s = Number(seed);
       const r = methode === "zufaellig" ? zufallsauswahl(posten, umfang, s) : methode === "systematisch" ? systematischeAuswahl(posten, umfang, s) : monetaereAuswahl(posten, umfang, s);
+      setGezogenAus(herkunft);
       setErgebnis(r);
       if (r.methode === "monetaer" && r.intervall) onIntervall(r.intervall);
     } catch (e) {
@@ -30,9 +40,34 @@ function AuswahlKarte({ onIntervall }: { onIntervall: (i: number) => void }) {
     }
   }
 
+  function herunterladen() {
+    if (!ergebnis) return;
+    const csv = auswahlAlsCsv(gezogenAus, ergebnis.ausgewaehlt, { methode: ergebnis.methode, seed: ergebnis.seed });
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stichprobe-${ergebnis.methode}-seed${ergebnis.seed}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const gewaehlt = new Set(ergebnis?.ausgewaehlt ?? []);
+  const details = gezogenAus.filter((p) => gewaehlt.has(p.id));
+
   return (
-    <Karte titel="1. Stichprobe ziehen" norm="PS 530 (ISA 530)">
-      <Daten label="Grundgesamtheit" hilfe="Eine Zeile pro Posten: ID;Buchwert (Kopfzeile erlaubt). Aus Excel einfügbar." value={daten} onChange={(e) => setDaten(e.target.value)} placeholder={"D-1001;12'500.00\nD-1002;830.50"} />
+    <Karte titel="Stichprobe ziehen" norm="PS 530 (ISA 530)">
+      {quelle ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-800">
+          <span>
+            Grundgesamtheit aus Excel: <strong>{quelle.name}</strong> ({quelle.posten.length} Posten)
+          </span>
+          <button type="button" onClick={onQuelleLoeschen} className="min-h-11 touch-manipulation rounded-xl border border-slate-300 px-4 text-sm font-medium active:bg-slate-100">
+            Stattdessen Text einfügen
+          </button>
+        </div>
+      ) : (
+        <Daten label="Grundgesamtheit" hilfe="Eine Zeile pro Posten: ID;Buchwert (Kopfzeile erlaubt). Oder oben eine Excel-Datei importieren." value={daten} onChange={(e) => setDaten(e.target.value)} placeholder={"D-1001;12'500.00\nD-1002;830.50"} />
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <Auswahl label="Methode" value={methode} onChange={(e) => setMethode(e.target.value)}>
           <option value="monetaer">Monetär (MUS)</option>
@@ -51,7 +86,8 @@ function AuswahlKarte({ onIntervall }: { onIntervall: (i: number) => void }) {
             {ergebnis.intervall !== undefined && <>, Intervall {chf(ergebnis.intervall)}</>}.
           </p>
           {ergebnis.sicherAusgewaehlt && ergebnis.sicherAusgewaehlt.length > 0 && <p className="text-sm text-slate-700">Sicher ausgewählt (≥ Intervall): {ergebnis.sicherAusgewaehlt.join(", ")}</p>}
-          <p className="rounded-xl bg-slate-50 p-3 font-mono text-sm break-words">{ergebnis.ausgewaehlt.join("\n")}</p>
+          <Tabelle kopf={["Zeile", "ID", "Datum", "Konto", "Text", "Betrag"]} zeilen={details.map((p) => [p.excelZeile, p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", chf(p.betrag)])} />
+          <Knopf onClick={herunterladen}>Auswahl als CSV herunterladen</Knopf>
           <Hinweise liste={ergebnis.hinweise} />
         </div>
       )}
@@ -212,11 +248,13 @@ function AttributKarte() {
 
 export default function StichprobenSeite() {
   const [intervall, setIntervall] = useState("");
+  const [quelle, setQuelle] = useState<{ posten: Importiert[]; name: string } | null>(null);
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-slate-900">Stichproben</h1>
+      <ExcelImport onUebernehmen={(e: ImportErgebnis, name: string) => setQuelle({ posten: e.posten, name })} />
       <UmfangKarte />
-      <AuswahlKarte onIntervall={(i) => setIntervall(String(i))} />
+      <AuswahlKarte onIntervall={(i) => setIntervall(String(i))} quelle={quelle} onQuelleLoeschen={() => setQuelle(null)} />
       <MusKarte intervallVorgabe={intervall} />
       <AttributKarte />
     </div>
