@@ -6,7 +6,7 @@ import { baueNotiz } from "@/lib/dokumentation";
 import type { ImportErgebnis, Importiert } from "@/lib/import";
 import { istIsoDatum, addTage } from "@/lib/pruefung/datum";
 import { monetaereAuswahl, systematischeAuswahl, zufallsauswahl, type AuswahlErgebnis } from "@/lib/pruefung/stichprobe";
-import { einzelfallUmfang } from "@/lib/pruefung/umfang";
+import { OBERGRENZE_STICHPROBE, einzelfallUmfang, pruefeObergrenze } from "@/lib/pruefung/umfang";
 import Abstimmung from "@/components/Abstimmung";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
 import EinzelfallAuswertung from "@/components/EinzelfallAuswertung";
@@ -63,6 +63,7 @@ export default function EinzelfallSeite() {
   const [konfidenz, setKonfidenz] = useState("0.95");
   const [methode, setMethode] = useState<Methode>("monetaer");
   const [nManuell, setNManuell] = useState("");
+  const [erhoeht, setErhoeht] = useState(false);
   const [seed, setSeed] = useState(() => String(Math.floor(Math.random() * 1_000_000)));
   const [gezogen, setGezogen] = useState<{ auswahl: AuswahlErgebnis; notiz: string; n: number; methode: Methode } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -83,11 +84,11 @@ export default function EinzelfallSeite() {
   const umfang = useMemo(() => {
     if (posten.length === 0 || !(num(toleranz) > 0)) return null;
     try {
-      return { ok: einzelfallUmfang({ buchwert: wert, toleranz: num(toleranz), anzahlPosten: posten.length, konfidenz: Number(konfidenz) }) };
+      return { ok: einzelfallUmfang({ buchwert: wert, toleranz: num(toleranz), anzahlPosten: posten.length, konfidenz: Number(konfidenz), erhoehtesRisiko: erhoeht }) };
     } catch (e) {
       return { fehler: e instanceof Error ? e.message : "Umfang nicht berechenbar." };
     }
-  }, [posten, wert, toleranz, konfidenz]);
+  }, [posten, wert, toleranz, konfidenz, erhoeht]);
 
   function waehle(neu: string) {
     setId(neu);
@@ -105,6 +106,7 @@ export default function EinzelfallSeite() {
       setFehler(null);
       const n = nManuell.trim() ? Number(nManuell) : umfang?.ok ? umfang.ok.n : NaN;
       if (!Number.isInteger(n) || n < 1) throw new Error("Bitte Toleranz eingeben oder den Umfang von Hand festlegen.");
+      pruefeObergrenze(n);
       const p = posten.map((x) => ({ id: x.id, buchwert: x.buchwert }));
       const s = Number(seed);
       const a = methode === "monetaer" ? monetaereAuswahl(p, n, s) : methode === "zufaellig" ? zufallsauswahl(p, n, s) : systematischeAuswahl(p, n, s);
@@ -204,17 +206,21 @@ export default function EinzelfallSeite() {
                       ))}
                     </Auswahl>
                   </div>
+                  <label className="flex min-h-11 touch-manipulation items-center gap-3 text-sm text-slate-800">
+                    <input type="checkbox" checked={erhoeht} onChange={(e) => setErhoeht(e.target.checked)} className="h-6 w-6" />
+                    Erhöhtes Risiko (Vorschlag bis {OBERGRENZE_STICHPROBE} statt 10 Elemente)
+                  </label>
                   {umfang?.fehler && <Fehler text={umfang.fehler} />}
                   {umfang?.ok && (
                     <div className="space-y-2">
                       <p className="text-sm text-slate-800">
-                        Rechnerischer Vorschlag: <strong>{umfang.ok.n}</strong> Elemente (Buchwert {chf(wert)}, Faktor {umfang.ok.zuverlaessigkeitsfaktor.toFixed(2)}).
+                        Vorschlag: <strong>{umfang.ok.n}</strong> Elemente{umfang.ok.begrenzt ? ` (rechnerisch ${umfang.ok.rechnerisch})` : ""} (Buchwert {chf(wert)}, Faktor {umfang.ok.zuverlaessigkeitsfaktor.toFixed(2)}).
                       </p>
                       <Hinweise liste={umfang.ok.hinweise} />
                     </div>
                   )}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Feld label="Umfang von Hand festlegen (optional)" inputMode="numeric" value={nManuell} onChange={(e) => setNManuell(e.target.value)} hilfe="Pflichtgemässes Ermessen (Rz. 762); überschreibt den Vorschlag" />
+                    <Feld label="Umfang von Hand festlegen (optional)" inputMode="numeric" value={nManuell} onChange={(e) => setNManuell(e.target.value)} hilfe={`Pflichtgemässes Ermessen (Rz. 762); überschreibt den Vorschlag; höchstens ${OBERGRENZE_STICHPROBE}`} />
                     <Feld label="Seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} hilfe="Gleicher Seed = gleiche Auswahl. In die Dokumentation übernehmen." />
                   </div>
                   <Knopf onClick={ziehen}>Stichprobe ziehen</Knopf>
