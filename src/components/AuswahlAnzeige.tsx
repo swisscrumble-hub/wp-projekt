@@ -29,12 +29,13 @@ export default function AuswahlAnzeige({
   const [kopiert, setKopiert] = useState<boolean | null>(null);
   const gewaehlt = new Set(ids);
   const details = posten.filter((p) => gewaehlt.has(p.id));
-  const kopf = ["Zeile", "ID", "Datum", "Konto", "Text", ...(mitBetrag ? ["Betrag"] : []), ...(bemerkung ? ["Prüfhinweis"] : [])];
+  const mitSeite = details.some((p) => p.seite);
+  const kopf = ["Zeile", ...(mitSeite ? ["Seite"] : []), "ID", "Datum", "Konto", "Text", ...(mitBetrag ? ["Betrag"] : []), ...(bemerkung ? ["Prüfhinweis"] : [])];
   return (
     <div className="space-y-3">
       <Tabelle
         kopf={kopf}
-        zeilen={details.map((p) => [p.excelZeile, p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", ...(mitBetrag ? [chf(p.betrag)] : []), ...(bemerkung ? [bemerkung.get(p.id) ?? ""] : [])])}
+        zeilen={details.map((p) => [p.excelZeile, ...(mitSeite ? [p.seite ?? ""] : []), p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", ...(mitBetrag ? [chf(p.betrag)] : []), ...(bemerkung ? [bemerkung.get(p.id) ?? ""] : [])])}
       />
       <div className="flex flex-wrap gap-2">
         <Knopf onClick={() => lade(auswahlAlsCsv(posten, ids, { methode, seed }, bemerkung), dateiname)}>Auswahl als CSV herunterladen</Knopf>

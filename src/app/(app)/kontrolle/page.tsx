@@ -10,7 +10,7 @@ import { attributStichprobenumfang, type AuswahlErgebnis } from "@/lib/pruefung/
 import { kontrollUmfang, type KontrollUmfang } from "@/lib/pruefung/umfang";
 import Abstimmung from "@/components/Abstimmung";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
-import ExcelImport from "@/components/ExcelImport";
+import DateiImport from "@/components/DateiImport";
 import KontrollAuswertung from "@/components/KontrollAuswertung";
 import { Auswahl, Fehler, Feld, Hinweise, Karte, Knopf, Schritt, Tabelle } from "@/components/ui";
 
@@ -164,8 +164,8 @@ export default function KontrollSeite() {
       {k && (
         <>
           <div className="space-y-3">
-            <Schritt nr={2} titel="Excel hochladen" />
-            <ExcelImport
+            <Schritt nr={2} titel="Excel oder PDF hochladen" />
+            <DateiImport
               key={`${k.id}|${von}|${bis}`}
               titel="Vorgangsliste der Kontrolle"
               erwartet={{ titel: "Erwarteter Inhalt", spalten: k.population }}

@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import { FileSpreadsheet } from "lucide-react";
 import { MAX_DATEI_BYTES, findeKopfzeile, importiere, schlageSpaltenVor, type ImportErgebnis, type Spalten, type Zelle } from "@/lib/import";
+import { PdfFehler, lesePdf, type PdfJs } from "@/lib/pdf";
 import { Auswahl, Fehler, Feld, Hinweise, Karte, Knopf, Tabelle, chf } from "@/components/ui";
 
-type Blatt = { sheet: string; data: Zelle[][] };
+type Blatt = { sheet: string; data: Zelle[][]; /** nur PDF: Seite je Zeile */ seiten?: number[]; hinweise?: string[] };
 const KEINE = "-1";
 
 function SpaltenWahl({ label, kopf, wert, onChange }: { label: string; kopf: Zelle[]; wert?: number; onChange: (i?: number) => void }) {
@@ -30,13 +31,13 @@ const ERWEITERT_LABEL: Record<Erweitert, string> = {
   freigabedatum: "Freigabedatum",
 };
 
-export default function ExcelImport({
+export default function DateiImport({
   onUebernehmen,
   erweitert = [],
   betragOptional = false,
   erwartet,
   voreinstellung,
-  titel = "Excel-Datei importieren",
+  titel = "Excel- oder PDF-Datei importieren",
 }: {
   onUebernehmen: (e: ImportErgebnis, dateiname: string, spalten: Spalten) => void;
   erweitert?: Erweitert[];
@@ -79,19 +80,28 @@ export default function ExcelImport({
     setFehler(null);
     setBlaetter(null);
     setName("");
-    if (!/\.xlsx$/i.test(datei.name)) return setFehler("Nur .xlsx-Dateien werden gelesen. Andere Formate in Excel als .xlsx speichern oder die Tabelle unten einfügen.");
+    const istPdf = /\.pdf$/i.test(datei.name);
+    if (!istPdf && !/\.xlsx$/i.test(datei.name)) return setFehler("Es werden .xlsx- und .pdf-Dateien gelesen. Andere Formate (z.B. .xls, .csv) in Excel als .xlsx speichern oder die Tabelle unten einfügen.");
     if (datei.size > MAX_DATEI_BYTES) return setFehler("Die Datei ist grösser als 20 MB. Bitte eingrenzen.");
     setLaedt(true);
     try {
-      const { default: lese } = await import("read-excel-file/universal");
-      const sheets = (await lese(await datei.arrayBuffer())) as Blatt[];
-      if (sheets.length === 0) throw new Error("leer");
+      let sheets: Blatt[];
+      if (istPdf) {
+        const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+        const t = await lesePdf(await datei.arrayBuffer(), pdfjs as unknown as PdfJs);
+        sheets = [{ sheet: `PDF (${new Set(t.seiten).size} Seiten mit Text)`, data: t.zeilen, seiten: t.seiten, hinweise: t.hinweise }];
+      } else {
+        const { default: lese } = await import("read-excel-file/universal");
+        sheets = (await lese(await datei.arrayBuffer())) as Blatt[];
+        if (sheets.length === 0) throw new Error("leer");
+      }
       setBlaetter(sheets);
       setName(datei.name);
       setBlatt(0);
       vorschlag(sheets[0]!.data);
-    } catch {
-      setFehler("Die Datei konnte nicht gelesen werden. Ist es eine gültige, nicht passwortgeschützte .xlsx-Datei?");
+    } catch (e) {
+      setFehler(e instanceof PdfFehler ? e.message : istPdf ? "Das PDF konnte nicht gelesen werden." : "Die Datei konnte nicht gelesen werden. Ist es eine gültige, nicht passwortgeschützte .xlsx-Datei?");
     } finally {
       setLaedt(false);
     }
@@ -115,6 +125,7 @@ export default function ExcelImport({
           spalten: wahl,
           absolut,
           ohneBetrag,
+          seiten: blaetter[blatt]?.seiten,
           filter: {
             konten: konten.split(",").map((k) => k.trim()).filter(Boolean),
             datumVon: von || undefined,
@@ -127,7 +138,7 @@ export default function ExcelImport({
     } catch (e) {
       return { fehler: e instanceof Error ? e.message : "Import nicht möglich." };
     }
-  }, [blaetter, daten, kopfNr, spalten, modus, absolut, konten, von, bis, minBetrag, ohneBetrag, erweitert, vorzeichen]);
+  }, [blaetter, daten, kopfNr, spalten, modus, absolut, konten, von, bis, minBetrag, ohneBetrag, erweitert, vorzeichen, blatt]);
 
   const setzeSpalte = (feld: keyof Spalten) => (i?: number) => setSpalten((s) => ({ ...s, [feld]: i }));
   const r = ergebnis && "ok" in ergebnis ? ergebnis.ok : null;
@@ -142,13 +153,14 @@ export default function ExcelImport({
       )}
       <label className="flex min-h-11 w-full cursor-pointer touch-manipulation items-center gap-2 rounded-xl border border-dashed border-slate-400 bg-slate-50 px-4 text-sm font-medium text-slate-800 active:bg-slate-100">
         <FileSpreadsheet className="h-5 w-5" aria-hidden />
-        {laedt ? "Wird gelesen …" : name ? `Geladen: ${name} (andere Datei wählen)` : ".xlsx-Datei wählen"}
-        <input type="file" accept=".xlsx" className="sr-only" onChange={(e) => void dateiGewaehlt(e.target.files?.[0])} />
+        {laedt ? "Wird gelesen …" : name ? `Geladen: ${name} (andere Datei wählen)` : ".xlsx- oder .pdf-Datei wählen"}
+        <input type="file" accept=".xlsx,.pdf,application/pdf" className="sr-only" onChange={(e) => void dateiGewaehlt(e.target.files?.[0])} />
       </label>
       <Fehler text={fehler} />
 
       {blaetter && (
         <div className="space-y-4">
+          {blaetter[blatt]?.hinweise && <Hinweise liste={[...blaetter[blatt]!.hinweise!, "Soll/Haben: Haben wird abgezogen (Soll − Haben); Beträge in Klammern oder mit Minus am Ende gelten als negativ. Gescannte PDFs (Bilder) werden nicht gelesen."]} />}
           <div className="grid gap-3 sm:grid-cols-3">
             <Auswahl
               label="Tabellenblatt"
@@ -240,8 +252,8 @@ export default function ExcelImport({
                 </details>
               )}
               <Tabelle
-                kopf={["Zeile", "ID", "Datum", "Konto", "Text", "Betrag"]}
-                zeilen={r.posten.slice(0, 5).map((p) => [p.excelZeile, p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", chf(p.betrag)])}
+                kopf={["Zeile", ...(r.posten.some((p) => p.seite) ? ["Seite"] : []), "ID", "Datum", "Konto", "Text", "Betrag"]}
+                zeilen={r.posten.slice(0, 5).map((p) => [p.excelZeile, ...(r.posten.some((q) => q.seite) ? [p.seite ?? ""] : []), p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", chf(p.betrag)])}
               />
               <Knopf disabled={r.posten.length === 0} onClick={() => onUebernehmen(r, name, gewaehlteSpalten)}>
                 Als Grundgesamtheit übernehmen ({r.posten.length} Posten)

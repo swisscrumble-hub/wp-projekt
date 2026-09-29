@@ -10,7 +10,7 @@ import { einzelfallUmfang } from "@/lib/pruefung/umfang";
 import Abstimmung from "@/components/Abstimmung";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
 import EinzelfallAuswertung from "@/components/EinzelfallAuswertung";
-import ExcelImport from "@/components/ExcelImport";
+import DateiImport from "@/components/DateiImport";
 import { Auswahl, Fehler, Feld, Hinweise, Karte, Knopf, Schritt, Tabelle, chf, num } from "@/components/ui";
 
 const METHODE_LABEL = { monetaer: "Monetär (MUS, wertproportional)", zufaellig: "Zufällig (gleiche Chance)", systematisch: "Systematisch (fester Abstand)" } as const;
@@ -167,8 +167,8 @@ export default function EinzelfallSeite() {
           )}
 
           <div className="space-y-3">
-            <Schritt nr={2} titel="Excel hochladen" />
-            <ExcelImport
+            <Schritt nr={2} titel="Excel oder PDF hochladen" />
+            <DateiImport
               key={`${eintrag.id}|${voreinstellung?.datumVon ?? ""}|${voreinstellung?.datumBis ?? ""}`}
               titel={eintrag.population.titel}
               erwartet={{ titel: "Erwarteter Inhalt", spalten: eintrag.population.spalten }}

@@ -37,6 +37,8 @@ export type ImportOptionen = {
   absolut: boolean;
   /** Kontrollprüfung: Die Datei enthält keine Beträge (Vorgangsliste); Betrag = 0. */
   ohneBetrag?: boolean;
+  /** PDF-Import: Seitennummer je Zeile (Index wie `zeilen`) */
+  seiten?: number[];
   filter?: { konten?: string[]; datumVon?: string; datumBis?: string; minBetrag?: number; vorzeichen?: "soll" | "haben" };
 };
 
@@ -45,6 +47,8 @@ export type Importiert = {
   id: string;
   /** Zeilennummer in der gelesenen Tabelle (1 = erste Zeile) */
   excelZeile: number;
+  /** Nur PDF: Seite in der Quelldatei */
+  seite?: number;
   beleg?: string;
   datum?: string;
   konto?: string;
@@ -207,6 +211,7 @@ export function importiere(zeilen: Zelle[][], opt: ImportOptionen): ImportErgebn
     }
     roh.push({
       excelZeile: nr,
+      seite: opt.seiten?.[i],
       beleg: s.id !== undefined ? text(zell(s.id) ?? null) || undefined : undefined,
       datum,
       konto: konto || undefined,
@@ -262,6 +267,7 @@ export function auswahlAlsCsv(posten: Importiert[], ids: string[], meta: { metho
   const treffer = posten.filter((p) => gewaehlt.has(p.id));
   const hat = (f: (p: Importiert) => unknown) => treffer.some((p) => f(p) !== undefined);
   const extra: [string, (p: Importiert) => string | number | undefined][] = [];
+  if (hat((p) => p.seite)) extra.unshift(["Seite", (p) => p.seite]);
   if (hat((p) => p.erfasser)) extra.push(["Erfasser", (p) => p.erfasser]);
   if (hat((p) => p.freigeber)) extra.push(["Freigeber", (p) => p.freigeber]);
   if (hat((p) => p.manuell)) extra.push(["Manuell", (p) => (p.manuell === undefined ? undefined : p.manuell ? "ja" : "nein")]);

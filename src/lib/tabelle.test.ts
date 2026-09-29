@@ -8,6 +8,12 @@ test("parseZahl: Schweizer und deutsche Schreibweisen, ungültiges wird abgelehn
   assert.equal(parseZahl("-12.5"), -12.5);
   assert.equal(parseZahl("1,234,567"), 1234567);
   assert.equal(parseZahl(" 100 "), 100);
+  assert.equal(parseZahl("(1'234.50)"), -1234.5);
+  assert.equal(parseZahl("1'234.50-"), -1234.5);
+  assert.equal(parseZahl("CHF 1'000.00"), 1000);
+  assert.equal(parseZahl("-5"), -5);
+  assert.throws(() => parseZahl("--5"), TabellenFehler);
+  assert.throws(() => parseZahl("()"), TabellenFehler);
   assert.throws(() => parseZahl("abc"), TabellenFehler);
   assert.throws(() => parseZahl(""), TabellenFehler);
   assert.throws(() => parseZahl("1e5"), TabellenFehler);
