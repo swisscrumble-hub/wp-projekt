@@ -22,12 +22,21 @@ Annahmen und Grenzen (stehen auch in den Ergebnissen):
 - Fraud-Regeln sind Heuristiken für die Auswahl von Prüfungshandlungen; sie decken Management Override nicht ab. Fehlen Uhrzeit, Partner oder Erfasser, ist die Regel für diese Buchungen «nicht prüfbar».
 - Going Concern entscheidet nie über die Fortführung; die Artikelbezüge zum OR sind gegen die geltende Fassung zu prüfen.
 
-Noch offen: Oberfläche (Next.js), Datenbank, Anmeldung. Vor einer Anbindung an Vercel müssen `next` und `prisma` samt Schema in `package.json` ergänzt werden; das Build-Skript setzt beides voraus.
+## Anwendung (Next.js 16)
+
+Vier Seiten unter Anmeldung: `/stichproben`, `/analytik`, `/betrug`, `/going-concern`. Daten werden eingefügt (Excel/CSV, Trennzeichen Tab, `;` oder `,`; Zahlen wie `1'234.50` oder `1234,50`) und **im Browser berechnet**; Mandantendaten werden nicht an einen Server gesendet und nicht gespeichert.
+
+Zugang: Passwort (`ADMIN_PASSWORD`, mind. 12 Zeichen) und `AUTH_SECRET` (mind. 32 Zeichen), siehe `.env.example`. Fehlt eine Variable, bleibt alles gesperrt (fail closed). Session-Cookie: HttpOnly, SameSite=Strict, Secure, 8 Stunden; Origin-Prüfung bei schreibenden Anfragen; Security-Header in `next.config.ts`.
+
+Grenzen der Anmeldung: Ein Passwort für alle, keine Benutzerverwaltung. Die Bremse gegen Fehlversuche liegt im Speicher je Server-Instanz und ist auf Vercel nur eine Bremse, kein vollständiger Schutz. Für mehrere Personen oder echte Mandantendaten ist eine richtige Benutzerverwaltung nötig.
+
+Noch offen: Datenbank/Speichern von Prüfungen, Benutzer und Rollen, Normbibliothek.
 
 ## Entwicklung
 
 ```
 npm install
-npm run typecheck
-npm test
+cp .env.example .env.local   # Werte eintragen, nie committen
+npm run dev
+npm run typecheck && npm run lint && npm test
 ```
