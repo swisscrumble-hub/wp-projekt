@@ -13,7 +13,21 @@ export type Zelle = string | number | boolean | Date | null | undefined;
 export const MAX_ZEILEN = 200_000;
 export const MAX_DATEI_BYTES = 20 * 1024 * 1024;
 
-export type Spalten = { id?: number; betrag?: number; soll?: number; haben?: number; datum?: number; konto?: number; text?: number };
+export type Spalten = {
+  id?: number;
+  betrag?: number;
+  soll?: number;
+  haben?: number;
+  datum?: number;
+  konto?: number;
+  text?: number;
+  erfasser?: number;
+  freigeber?: number;
+  /** manuell/automatisch (Buchungsart) */
+  manuell?: number;
+  erfassungsdatum?: number;
+  freigabedatum?: number;
+};
 
 export type ImportOptionen = {
   /** 0-basierter Index der Kopfzeile */
@@ -21,7 +35,9 @@ export type ImportOptionen = {
   spalten: Spalten;
   /** Beträge als Absolutwert verwenden (Soll/Haben oder Gutschriften nicht gegenseitig aufheben) */
   absolut: boolean;
-  filter?: { konten?: string[]; datumVon?: string; datumBis?: string; minBetrag?: number };
+  /** Kontrollprüfung: Die Datei enthält keine Beträge (Vorgangsliste); Betrag = 0. */
+  ohneBetrag?: boolean;
+  filter?: { konten?: string[]; datumVon?: string; datumBis?: string; minBetrag?: number; vorzeichen?: "soll" | "haben" };
 };
 
 export type Importiert = {
@@ -33,6 +49,12 @@ export type Importiert = {
   datum?: string;
   konto?: string;
   text?: string;
+  erfasser?: string;
+  freigeber?: string;
+  /** true = manuell, false = automatisch/Schnittstelle, undefined = unbekannt */
+  manuell?: boolean;
+  erfassungsdatum?: string;
+  freigabedatum?: string;
   /** vorzeichenbehaftet, wie in der Quelle */
   betrag: number;
   /** Wert für die Stichprobe (Absolutwert, falls gewählt) */
@@ -72,6 +94,11 @@ const SYNONYME: Record<keyof Spalten, string[]> = {
   datum: ["datum", "buchungsdatum", "belegdatum", "valuta", "date", "bdatum"],
   konto: ["konto", "kontonr", "kontonummer", "sachkonto", "account", "kto"],
   text: ["text", "buchungstext", "beschreibung", "bezeichnung", "description", "kontotext"],
+  erfasser: ["erfasser", "erfasstvon", "benutzer", "user", "bearbeiter", "ersteller", "buchungsbenutzer", "createdby"],
+  freigeber: ["freigeber", "freigabe", "freigegebenvon", "genehmigtvon", "genehmiger", "approver", "visum", "approvedby"],
+  manuell: ["manuell", "buchungsart", "quelle", "herkunft", "manual", "source", "belegart"],
+  erfassungsdatum: ["erfassungsdatum", "erfasstam", "eingabedatum", "erstelltam", "createdat", "erfassungszeitpunkt", "timestamp"],
+  freigabedatum: ["freigabedatum", "freigegebenam", "genehmigtam", "freigabeam", "approvedat"],
 };
 
 /** Schlägt Spalten anhand der Kopfzeile vor (der Benutzer bestätigt oder korrigiert). */
@@ -110,12 +137,24 @@ function zuZahl(z: Zelle): number | undefined {
   return undefined;
 }
 
+const JA = ["ja", "j", "true", "1", "x", "manuell", "manual", "m", "handbuchung"];
+const NEIN = ["nein", "n", "false", "0", "auto", "automatisch", "automatic", "system", "schnittstelle", "interface", "a"];
+
+/** Buchungsart als Ja/Nein; unbekannte Werte bleiben undefined (nie geraten). */
+export function zuManuell(z: Zelle): boolean | undefined {
+  if (typeof z === "boolean") return z;
+  const t = text(z ?? null).toLowerCase();
+  if (JA.includes(t)) return true;
+  if (NEIN.includes(t)) return false;
+  return undefined;
+}
+
 const SUMMENZEILE = /^(total|summe|gesamt|gesamtsumme|zwischensumme|übertrag|uebertrag)\b/i;
 
 export function importiere(zeilen: Zelle[][], opt: ImportOptionen): ImportErgebnis {
   if (zeilen.length > MAX_ZEILEN + 1) throw new TabellenFehler(`Die Tabelle hat mehr als ${MAX_ZEILEN} Zeilen; bitte eingrenzen.`);
   const s = opt.spalten;
-  const hatBetrag = s.betrag !== undefined || (s.soll !== undefined && s.haben !== undefined);
+  const hatBetrag = opt.ohneBetrag || s.betrag !== undefined || (s.soll !== undefined && s.haben !== undefined);
   if (!hatBetrag) throw new TabellenFehler("Bitte eine Betragsspalte oder Soll und Haben wählen.");
   if (opt.kopfzeile < 0 || opt.kopfzeile >= zeilen.length) throw new TabellenFehler("Kopfzeile ausserhalb der Tabelle.");
 
@@ -140,7 +179,8 @@ export function importiere(zeilen: Zelle[][], opt: ImportOptionen): ImportErgebn
     }
 
     let betrag: number | undefined;
-    if (s.betrag !== undefined) betrag = zuZahl(zell(s.betrag));
+    if (opt.ohneBetrag) betrag = 0;
+    else if (s.betrag !== undefined) betrag = zuZahl(zell(s.betrag));
     else {
       const so = zell(s.soll);
       const ha = zell(s.haben);
@@ -161,7 +201,7 @@ export function importiere(zeilen: Zelle[][], opt: ImportOptionen): ImportErgebn
       continue;
     }
     const konto = s.konto !== undefined ? text(zell(s.konto) ?? null) : undefined;
-    if ((konten && !konten.has(konto ?? "")) || (f.datumVon && datum! < f.datumVon) || (f.datumBis && datum! > f.datumBis) || (f.minBetrag !== undefined && Math.abs(betrag) < f.minBetrag)) {
+    if ((konten && !konten.has(konto ?? "")) || (f.datumVon && datum! < f.datumVon) || (f.datumBis && datum! > f.datumBis) || (f.minBetrag !== undefined && Math.abs(betrag) < f.minBetrag) || (f.vorzeichen === "soll" && betrag <= 0) || (f.vorzeichen === "haben" && betrag >= 0)) {
       ausserhalbFilter++;
       continue;
     }
@@ -171,6 +211,11 @@ export function importiere(zeilen: Zelle[][], opt: ImportOptionen): ImportErgebn
       datum,
       konto: konto || undefined,
       text: s.text !== undefined ? text(zell(s.text) ?? null) || undefined : undefined,
+      erfasser: s.erfasser !== undefined ? text(zell(s.erfasser) ?? null) || undefined : undefined,
+      freigeber: s.freigeber !== undefined ? text(zell(s.freigeber) ?? null) || undefined : undefined,
+      manuell: s.manuell !== undefined ? zuManuell(zell(s.manuell)) : undefined,
+      erfassungsdatum: s.erfassungsdatum !== undefined ? zuIsoDatum(zell(s.erfassungsdatum)) : undefined,
+      freigabedatum: s.freigabedatum !== undefined ? zuIsoDatum(zell(s.freigabedatum)) : undefined,
       betrag,
     });
   }
@@ -211,12 +256,21 @@ export function csvZelle(wert: string | number | undefined): string {
   return /[";]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-/** Ausgewählte Posten als CSV (Semikolon, mit BOM für Excel), inkl. Zeilennummer der Quelle. */
-export function auswahlAlsCsv(posten: Importiert[], ids: string[], meta: { methode: string; seed: number }): string {
+/** Ausgewählte Posten als CSV (Semikolon, mit BOM für Excel), inkl. Zeilennummer der Quelle. Zusatzspalten nur, wenn vorhanden. */
+export function auswahlAlsCsv(posten: Importiert[], ids: string[], meta: { methode: string; seed: number }, bemerkung?: Map<string, string>): string {
   const gewaehlt = new Set(ids);
-  const kopf = ["Zeile", "ID", "Beleg", "Datum", "Konto", "Text", "Betrag"];
-  const zeilen = posten
-    .filter((p) => gewaehlt.has(p.id))
-    .map((p) => [p.excelZeile, p.id, p.beleg, p.datum, p.konto, p.text, p.betrag].map((c) => csvZelle(c as string | number | undefined)).join(";"));
-  return `﻿# Methode: ${csvZelle(meta.methode)}; Seed: ${meta.seed}\r\n${kopf.join(";")}\r\n${zeilen.join("\r\n")}\r\n`;
+  const treffer = posten.filter((p) => gewaehlt.has(p.id));
+  const hat = (f: (p: Importiert) => unknown) => treffer.some((p) => f(p) !== undefined);
+  const extra: [string, (p: Importiert) => string | number | undefined][] = [];
+  if (hat((p) => p.erfasser)) extra.push(["Erfasser", (p) => p.erfasser]);
+  if (hat((p) => p.freigeber)) extra.push(["Freigeber", (p) => p.freigeber]);
+  if (hat((p) => p.manuell)) extra.push(["Manuell", (p) => (p.manuell === undefined ? undefined : p.manuell ? "ja" : "nein")]);
+  if (hat((p) => p.erfassungsdatum)) extra.push(["Erfassungsdatum", (p) => p.erfassungsdatum]);
+  if (hat((p) => p.freigabedatum)) extra.push(["Freigabedatum", (p) => p.freigabedatum]);
+  if (bemerkung) extra.push(["Prüfhinweis", (p) => bemerkung.get(p.id)]);
+  const kopf = ["Zeile", "ID", "Beleg", "Datum", "Konto", "Text", "Betrag", ...extra.map((e) => e[0])];
+  const zeilen = treffer.map((p) =>
+    [p.excelZeile, p.id, p.beleg, p.datum, p.konto, p.text, p.betrag, ...extra.map((e) => e[1](p))].map((c) => csvZelle(c as string | number | undefined)).join(";"),
+  );
+  return `\uFEFF# Methode: ${csvZelle(meta.methode)}; Seed: ${meta.seed}\r\n${kopf.join(";")}\r\n${zeilen.join("\r\n")}\r\n`;
 }

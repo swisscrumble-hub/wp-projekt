@@ -105,5 +105,41 @@ export function Tabelle({ kopf, zeilen }: { kopf: string[]; zeilen: (string | nu
   );
 }
 
-export const chf = (n: number | null | undefined) => (n == null ? "–" : n.toLocaleString("de-CH", { maximumFractionDigits: 2 }));
+export const chf = (n: number | null | undefined) => (n == null ? "–" : n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 export const prozent = (n: number | null | undefined, stellen = 1) => (n == null ? "–" : `${n.toLocaleString("de-CH", { maximumFractionDigits: stellen })} %`);
+
+/** Kopiert Text in die Zwischenablage (Fallback für Umgebungen ohne Clipboard-API). */
+export async function kopiere(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Lädt Text als Datei herunter (Browser). */
+export function lade(text: string, dateiname: string, typ = "text/csv;charset=utf-8") {
+  const url = URL.createObjectURL(new Blob([text], { type: typ }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = dateiname;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function Schritt({ nr, titel, children }: { nr: number; titel: string; children?: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">{nr}</span>
+      <h2 className="text-base font-semibold text-slate-900">{titel}</h2>
+      {children}
+    </div>
+  );
+}
+
+/** Zahl aus Formularfeld (Schweizer Schreibweise: 1'234.50 oder 1234,50); NaN bei Ungültigem. */
+export const num = (s: string): number => {
+  const t = s.trim().replace(/[\s'’]/g, "").replace(",", ".");
+  return t === "" ? NaN : Number(t);
+};

@@ -2,37 +2,44 @@
 
 Privates Repo. **Keine Mandantendaten, keine Zugangsdaten, keine Prüfungsunterlagen einchecken** (`.gitignore` schliesst `.env*`, `daten/`, `*.xlsx`, `*.csv` aus).
 
-## Automatisierbare Prüfungshandlungen (`src/lib/pruefung/`)
+Web-App für automatisierbare Prüfungshandlungen der ordentlichen Revision. Auf jeder Seite wird eine Excel-Datei hochgeladen, daraus werden Stichproben bzw. Prüfhinweise erzeugt. Grundlage ist das Schweizer Handbuch der Wirtschaftsprüfung, Band «Ordentliche Revision» (EXPERTsuisse, HWP OR 2024).
 
-Reine Rechenlogik ohne Framework und ohne Netzwerkzugriff. Ergebnisse sind nachvollziehbar (Seed, Intervall, Faktoren, Normbezug) und sind **Prüfhinweise, keine Urteile**; die Würdigung bleibt beim Prüfer.
+## Aufbau
 
-| Modul | Inhalt | Norm |
+| Seite | Ablauf | Grundlage |
 |---|---|---|
-| `stichprobe.ts` | Zufalls-, systematische und monetäre Auswahl (MUS mit sicherer Auswahl grosser Posten), MUS-Umfang, Stringer-Obergrenze, Attributprüfung (Clopper-Pearson), geschichtete Auswahl, Verhältnis-Hochrechnung | PS 530 (ISA 530) |
-| `analytik.ts` | Horizontal-/Vertikalanalyse, Kennzahlen, Regression und Erwartungswert mit Toleranzband, Trend | PS 520 (ISA 520) |
-| `fraud.ts` | Betrugsrisikoindikatoren im Journal: Erfassung ausserhalb üblicher Zeit, Wochenende, Rundbeträge, manuelle Buchungen vor Jahresende, Doppelzahlungen, fehlende Funktionstrennung; Abdeckung je Regel (nicht prüfbar wird ausgewiesen) | PS 240 (ISA 240) |
-| `goingConcern.ts` | Fragebogen (unvollständig = keine Auswertung), Liquiditätsprognose mit Kreditlinie und Engpass, Covenants, Kapitalverlust/Überschuldung als rechnerischer Hinweis | PS 570 (ISA 570), Art. 725a/725b OR |
-| `datum.ts`, `zufall.ts` | Reproduzierbarer Zufall (Seed gehört in die Dokumentation) | |
+| `/einzelfall` **Einzelfallprüfung** | Einzelfallprüfung aus dem Katalog wählen (Aktiven, Passiven, Erfolgsrechnung) → Excel hochladen → Grundgesamtheit abstimmen → Umfang festlegen (MUS-Formel, 95 % Standard) → Stichprobe ziehen → Auswertung (obere Fehlergrenze bzw. Hochrechnung) | HWP Teil III.4.9 (Katalog), III.4.5 (Stichproben), Rz. 792 (Hochrechnung) |
+| `/kontrolle` **Kontrollprüfung** | Kontrolle wählen (Beispielkontrollen je Prozess oder eigene) → Excel mit Vorgängen hochladen → automatische Datenprüfung über alle Vorgänge (Funktionstrennung, Freigabe fehlt, Freigabe verspätet) → Stichprobe über den Prüfzeitraum → Auswertung der Abweichungen | HWP Teil III.4.2 (Funktionsprüfungen), Rz. 303–308, 600–603, 764, 794–796 |
+| `/journal` **Journalprüfung** | Journal als Excel hochladen → Stichtag und Schwellen festlegen → Buchungen nach definierten Merkmalen erhöhten Risikos bewerten → Auswahl (risikobasiert plus Zufallsanteil) | HWP Teil III.3.9.4.2 Rz. 374–377 (Merkmale aus ISA-CH 240) |
 
-Annahmen und Grenzen (stehen auch in den Ergebnissen):
-- MUS-Umfang und Stringer-Grenze: erwartete Fehlaussage = 0; nur Überbewertungen werden hochgerechnet, Unterbewertungen ausgewiesen und nicht saldiert.
-- Erwartungswert-Band ist eine Näherung (Standardfehler der Prognose, k = 2); weniger als 6 Datenpunkte → keine Berechnung.
-- Nicht-statistische Verfahren liefern keine Aussage zur Sicherheit.
+Going Concern ist bewusst nicht enthalten.
 
-- Fraud-Regeln sind Heuristiken für die Auswahl von Prüfungshandlungen; sie decken Management Override nicht ab. Fehlen Uhrzeit, Partner oder Erfasser, ist die Regel für diese Buchungen «nicht prüfbar».
-- Going Concern entscheidet nie über die Fortführung; die Artikelbezüge zum OR sind gegen die geltende Fassung zu prüfen.
+Jede Auswahl liefert eine **Dokumentationsnotiz** (Methode, Seed, Umfang, Grundgesamtheit, Randziffer) und einen **CSV-Download** mit der Zeilennummer aus der Quelldatei. Gleicher Seed, gleiche Datei und gleiche Parameter ergeben dieselbe Auswahl.
 
-## Anwendung (Next.js 16)
+## Excel-Import
 
-Vier Seiten unter Anmeldung: `/stichproben`, `/analytik`, `/betrug`, `/going-concern`. Daten werden eingefügt (Excel/CSV, Trennzeichen Tab, `;` oder `,`; Zahlen wie `1'234.50` oder `1234,50`) und **im Browser berechnet**; Mandantendaten werden nicht an einen Server gesendet und nicht gespeichert.
+`.xlsx` (bis 20 MB, 200'000 Zeilen), im Browser gelesen und **nicht hochgeladen**. Kopfzeile und Spalten werden vorgeschlagen (Beleg, Datum, Konto, Text, Betrag oder Soll/Haben, je nach Seite Erfasser, Freigeber, Buchungsart, Erfassungs-/Freigabedatum) und können korrigiert werden. Filter: Konto, Datum, Mindestbetrag, Buchungsseite (Soll/Haben). Der Import weist Kontrollzahlen aus (Anzahl, Summen) und erlaubt den Abgleich mit dem Hauptbuchsaldo; übersprungene Zeilen (auch Summenzeilen) werden mit Grund gelistet. Fehlt für ein Kriterium eine Spalte, steht es als **«nicht prüfbar»**, nie als «ohne Auffälligkeit».
 
-**Excel-Import (Stichproben):** `.xlsx` mit Kontodetails oder Buchungsjournal wählen, Kopfzeile und Spalten bestätigen (werden vorgeschlagen), optional filtern (Konto, Datum, Mindestbetrag). Der Import weist Anzahl und Summen als Kontrollzahlen aus (mit der Quelle abstimmen) und listet übersprungene Zeilen, auch Summenzeilen. Die Auswahl zeigt die Zeilennummer der Quelle und lässt sich als CSV herunterladen (Formelzeichen am Textanfang werden neutralisiert). Nur `.xlsx`, bis 20 MB und 200'000 Zeilen.
+## Wichtige Grenzen
 
-Zugang: Passwort (`ADMIN_PASSWORD`, mind. 12 Zeichen) und `AUTH_SECRET` (mind. 32 Zeichen), siehe `.env.example`. Fehlt eine Variable, bleibt alles gesperrt (fail closed). Session-Cookie: HttpOnly, SameSite=Strict, Secure, 8 Stunden; Origin-Prüfung bei schreibenden Anfragen; Security-Header in `next.config.ts`.
+- **Urheberrecht:** Der Katalog (`src/lib/hwp/`) enthält keine Textauszüge aus dem Handbuch, sondern eigene Kurzformulierungen mit Randziffer. Die Randziffern wurden am Handbuch (Ausgabe 2024) geprüft; Auswahl und Formulierung sind eine Arbeitshilfe, kein Ersatz für das Handbuch.
+- **Kontrollen:** Das Handbuch enthält keinen Katalog konkreter Schlüsselkontrollen. Die Kontrollen sind **Beispiele (eigener Vorschlag)** und an das Mandat anzupassen; aus dem Handbuch stammen Kontrollarten und Prüfungshandlungen.
+- **Stichprobenumfang bei Kontrollen:** Die Staffelung nach Häufigkeit (1/1/2/5/25, sonst 10 %, höchstens 40) stammt aus den Q&A des Handbuchs zur CMS-Prüfung (PS-CH 980); die Übertragung auf IKS-Funktionsprüfungen ist durch den Prüfer zu bestätigen. Alternativ: statistische Attributprüfung.
+- **ISA 240 (Revised):** Die Journal-Kriterien folgen Rz. 375 (ISA-CH 240). Der Abgleich mit dem Wortlaut von ISA 240 (Revised) war nicht Teil der Unterlagen und ist vom Prüfer vorzunehmen.
+- MUS-Umfang und Stringer-Grenze setzen erwartete Fehler = 0 voraus; Unterbewertungen werden ausgewiesen, nicht saldiert.
+- Alle Ergebnisse sind rechnerische Vorschläge und **Prüfhinweise, keine Urteile**. Umfang, Methode und Würdigung liegen beim Prüfer.
+- Zugang: ein Passwort für alle, keine Benutzerverwaltung. Die Bremse gegen Fehlversuche liegt im Speicher je Server-Instanz. Für echte Mandantendaten und mehrere Personen ist eine Benutzerverwaltung nötig.
 
-Grenzen der Anmeldung: Ein Passwort für alle, keine Benutzerverwaltung. Die Bremse gegen Fehlversuche liegt im Speicher je Server-Instanz und ist auf Vercel nur eine Bremse, kein vollständiger Schutz. Für mehrere Personen oder echte Mandantendaten ist eine richtige Benutzerverwaltung nötig.
+## Zugang und Datenschutz
 
-Noch offen: Datenbank/Speichern von Prüfungen, Benutzer und Rollen, Normbibliothek.
+Anmeldung mit `ADMIN_PASSWORD` (mind. 12 Zeichen) und `AUTH_SECRET` (mind. 32 Zeichen), siehe `.env.example`. Fehlt eine Variable, bleibt alles gesperrt (fail closed). Session-Cookie: HttpOnly, SameSite=Strict, Secure, 8 Stunden; Sperre in `src/proxy.ts` plus Prüfung im Layout; Origin-Prüfung bei schreibenden Anfragen; Security-Header in `next.config.ts`. Berechnungen laufen im Browser; eingefügte Daten werden nicht gesendet und nicht gespeichert.
+
+## Code
+
+- `src/lib/hwp/`: Kataloge (Einzelfallprüfungen, Kontrollen) und Quellenangabe
+- `src/lib/pruefung/`: `stichprobe.ts` (Auswahl, MUS, Attribut), `umfang.ts` (Umfang, Hochrechnung), `kontrolle.ts` (Datentests, Stichprobe), `journalpruefung.ts` (Merkmale, Auswahl), `analytik.ts` (Vorjahresvergleich, Regression; derzeit nicht in der Oberfläche)
+- `src/lib/import.ts`, `tabelle.ts`, `dokumentation.ts`: Import, Tabellen, Notiz
+- `src/app/(app)/`: Seiten; `src/components/`: Bausteine
 
 ## Entwicklung
 

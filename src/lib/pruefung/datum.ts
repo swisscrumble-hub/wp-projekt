@@ -18,3 +18,11 @@ export function tagNummer(s: string): number {
 
 /** 0 = Sonntag … 6 = Samstag */
 export const wochentag = (s: string): number => new Date(tagNummer(s) * 86_400_000).getUTCDay();
+
+/** Kalendertag aus der Tagesnummer (Umkehrung von tagNummer). */
+export function ausTagNummer(n: number): string {
+  const d = new Date(n * 86_400_000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+export const addTage = (iso: string, tage: number): string => ausTagNummer(tagNummer(iso) + tage);
