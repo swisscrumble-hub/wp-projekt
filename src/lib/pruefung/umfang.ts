@@ -8,6 +8,24 @@ import type { Haeufigkeit } from "../hwp/kontrollen";
 import { hwpZitat } from "../hwp/quelle";
 import { StichprobenFehler, musStichprobenumfang } from "./stichprobe";
 
+// --- Praktische Grenzen -----------------------------------------------------------------
+
+/** Absolute Obergrenze je Prüfungshandlung (Vorgabe des Prüfers); gilt auch für den von Hand festgelegten Umfang. */
+export const OBERGRENZE_STICHPROBE = 15;
+/** Im Normalfall vorgeschlagener Bereich; die obere Grenze steigt nur bei erhöhtem Risiko auf die absolute Obergrenze. */
+export const NORMAL_MIN = 5;
+export const NORMAL_MAX = 10;
+
+/** Prüft einen von Hand festgelegten Umfang gegen die absolute Obergrenze. */
+export function pruefeObergrenze(n: number): void {
+  if (n > OBERGRENZE_STICHPROBE) throw new StichprobenFehler(`Der Umfang darf höchstens ${OBERGRENZE_STICHPROBE} Elemente je Prüfungshandlung betragen (absolute Obergrenze).`);
+}
+
+const grenze = (erhoeht?: boolean) => (erhoeht ? OBERGRENZE_STICHPROBE : NORMAL_MAX);
+
+const begrenzungsHinweis = (rechnerisch: number, n: number, erhoeht?: boolean) =>
+  `Rechnerisch wären ${rechnerisch} Elemente nötig; vorgeschlagen sind höchstens ${n} (${erhoeht ? `erhöhtes Risiko: absolute Obergrenze ${OBERGRENZE_STICHPROBE}` : `Normalfall ${NORMAL_MIN} bis ${NORMAL_MAX}; bei erhöhtem Risiko bis ${OBERGRENZE_STICHPROBE}`}). Die statistische Sicherheit der Formel wird dadurch nicht mehr erreicht: Festlegung im Ermessen (Rz. 762) begründen und ggf. ergänzende Prüfungshandlungen (z.B. Einzelprüfung wesentlicher Posten) durchführen.`;
+
 // --- Einzelfallprüfung -------------------------------------------------------------
 
 export type EinzelfallUmfang = {
@@ -15,6 +33,8 @@ export type EinzelfallUmfang = {
   /** Umfang der Formel vor der Begrenzung auf die Grundgesamtheit */
   rechnerisch: number;
   vollpruefung: boolean;
+  /** true, wenn der rechnerische Umfang auf die praktische Grenze reduziert wurde */
+  begrenzt: boolean;
   konfidenz: number;
   zuverlaessigkeitsfaktor: number;
   normbezug: string;
@@ -26,18 +46,23 @@ export type EinzelfallUmfang = {
  * Standard-Konfidenz 95 % (Rz. 775: «normalerweise 95 %», tiefer nur bei weiteren positiven Prüfungsergebnissen).
  * Die tolerierbare falsche Darstellung entspricht höchstens der Toleranzwesentlichkeit (Rz. 766).
  */
-export function einzelfallUmfang(p: { buchwert: number; toleranz: number; anzahlPosten: number; konfidenz?: number }): EinzelfallUmfang {
+export function einzelfallUmfang(p: { buchwert: number; toleranz: number; anzahlPosten: number; konfidenz?: number; erhoehtesRisiko?: boolean }): EinzelfallUmfang {
   const konfidenz = p.konfidenz ?? 0.95;
   if (!Number.isInteger(p.anzahlPosten) || p.anzahlPosten < 1) throw new StichprobenFehler("Die Grundgesamtheit ist leer.");
   const u = musStichprobenumfang({ buchwert: p.buchwert, toleranz: p.toleranz, konfidenz });
   const hinweise = [...u.hinweise, "Die tolerierbare falsche Darstellung darf die Toleranzwesentlichkeit nicht übersteigen (Rz. 766)."];
   if (konfidenz < 0.95) hinweise.push("Konfidenz unter 95 %: nur vertretbar, wenn weitere positive Prüfungsergebnisse (z.B. wirksames IKS) vorliegen (Rz. 775).");
-  const vollpruefung = u.n >= p.anzahlPosten;
-  if (vollpruefung) hinweise.push("Der rechnerische Umfang erreicht die Grundgesamtheit: lückenlose Prüfung (Rz. 758).");
+  const vorschlag = Math.min(Math.max(u.n, NORMAL_MIN), grenze(p.erhoehtesRisiko));
+  const begrenzt = u.n > vorschlag;
+  if (begrenzt) hinweise.push(begrenzungsHinweis(u.n, vorschlag, p.erhoehtesRisiko));
+  const n = Math.min(vorschlag, p.anzahlPosten);
+  const vollpruefung = n >= p.anzahlPosten;
+  if (vollpruefung) hinweise.push("Der Umfang erreicht die Grundgesamtheit: lückenlose Prüfung (Rz. 758).");
   return {
-    n: Math.min(u.n, p.anzahlPosten),
+    n,
     rechnerisch: u.n,
     vollpruefung,
+    begrenzt,
     konfidenz,
     zuverlaessigkeitsfaktor: u.zuverlaessigkeitsfaktor,
     normbezug: hwpZitat([757, 762, 766, 775]),
@@ -63,14 +88,14 @@ export const KONTROLL_STAFFELUNG: Record<Haeufigkeit, { n: number | "10%"; erwar
   automatisiert: { n: 1, erwarteteVorgaenge: null },
 };
 
-export const MAX_KONTROLL_STICHPROBE = 40;
 
 export type KontrollUmfang = { n: number; vollpruefung: boolean; normbezug: string; hinweise: string[] };
 
-export function kontrollUmfang(p: { haeufigkeit: Haeufigkeit; anzahlVorgaenge: number }): KontrollUmfang {
+export function kontrollUmfang(p: { haeufigkeit: Haeufigkeit; anzahlVorgaenge: number; erhoehtesRisiko?: boolean }): KontrollUmfang {
   if (!Number.isInteger(p.anzahlVorgaenge) || p.anzahlVorgaenge < 1) throw new StichprobenFehler("Die Vorgangsliste ist leer.");
   const s = KONTROLL_STAFFELUNG[p.haeufigkeit];
-  const soll = s.n === "10%" ? Math.min(Math.ceil(p.anzahlVorgaenge * 0.1), MAX_KONTROLL_STICHPROBE) : s.n;
+  const rechnerisch = s.n === "10%" ? Math.ceil(p.anzahlVorgaenge * 0.1) : s.n;
+  const soll = Math.min(rechnerisch, grenze(p.erhoehtesRisiko));
   const n = Math.min(soll, p.anzahlVorgaenge);
   const hinweise = [
     "Indikative Staffelung aus den Q&A des HWP zur CMS-Prüfung (PS-CH 980); Übertragbarkeit auf diese Kontrolle durch den Prüfer bestätigen. Umfang bestimmen ausserdem Risiko, tolerierbare und erwartete Abweichungen (Rz. 764).",
@@ -78,7 +103,8 @@ export function kontrollUmfang(p: { haeufigkeit: Haeufigkeit; anzahlVorgaenge: n
   if (p.haeufigkeit === "automatisiert") {
     hinweise.push("Automatisierte Kontrolle: Test of one nach Prüfung der generellen IT-Kontrollen; bei Systemänderungen im Zeitraum vor und nach der Änderung prüfen (Rz. 602).");
   }
-  if (p.haeufigkeit === "haeufiger") hinweise.push(`Öfter/unregelmässig: 10 % der Vorgänge, höchstens ${MAX_KONTROLL_STICHPROBE}.`);
+  if (p.haeufigkeit === "haeufiger") hinweise.push("Öfter/unregelmässig: 10 % der Vorgänge, begrenzt auf die praktische Obergrenze.");
+  if (rechnerisch > soll) hinweise.push(begrenzungsHinweis(rechnerisch, soll, p.erhoehtesRisiko));
   if (s.erwarteteVorgaenge !== null && (p.anzahlVorgaenge < s.erwarteteVorgaenge * 0.5 || p.anzahlVorgaenge > s.erwarteteVorgaenge * 1.5)) {
     hinweise.push(`Die Datei enthält ${p.anzahlVorgaenge} Vorgänge, bei dieser Häufigkeit sind etwa ${s.erwarteteVorgaenge} zu erwarten: Häufigkeit oder Vollständigkeit der Liste prüfen (Rz. 600).`);
   }

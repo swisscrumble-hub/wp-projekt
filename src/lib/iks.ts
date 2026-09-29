@@ -14,7 +14,7 @@
 import { DATENTEST_INFO, HAEUFIGKEIT_LABEL, type Ausfuehrung, type Datentest, type Haeufigkeit, type Wirkung } from "./hwp/kontrollen";
 import { hwpZitat } from "./hwp/quelle";
 import { csvZelle, findeKopfzeile, type Zelle } from "./import";
-import { KONTROLL_STAFFELUNG } from "./pruefung/umfang";
+import { KONTROLL_STAFFELUNG, NORMAL_MAX, OBERGRENZE_STICHPROBE } from "./pruefung/umfang";
 
 export class IksFehler extends Error {}
 
@@ -345,14 +345,15 @@ export function erzeugePruefplan(kontrollen: IksKontrolle[], opt: { pruefjahr: n
     } else if (!k.haeufigkeit) {
       umfangText = k.haeufigkeitRoh ? `Häufigkeit «${k.haeufigkeitRoh}» nicht erkannt: von Hand wählen` : "Häufigkeit nicht angegeben: von Hand wählen";
     } else if (k.haeufigkeit === "haeufiger") {
-      umfangText = "10 % der Vorgänge, höchstens 40 (Anzahl nach Upload der Vorgangsliste)";
+      umfangText = `10 % der Vorgänge, höchstens ${NORMAL_MAX} (bei erhöhtem Risiko ${OBERGRENZE_STICHPROBE}); Anzahl nach Upload der Vorgangsliste`;
     } else if (k.haeufigkeit === "automatisiert") {
       n = 1;
       umfangText = "Test of one (Rz. 602)";
     } else {
       const s = KONTROLL_STAFFELUNG[k.haeufigkeit];
-      n = typeof s.n === "number" ? s.n : null;
-      umfangText = `${n} ${n === 1 ? "Vorgang" : "Vorgänge"} (Staffelung «${HAEUFIGKEIT_LABEL[k.haeufigkeit]}»)`;
+      const roh = typeof s.n === "number" ? s.n : null;
+      n = roh === null ? null : Math.min(roh, NORMAL_MAX);
+      umfangText = `${n} ${n === 1 ? "Vorgang" : "Vorgänge"} (Staffelung «${HAEUFIGKEIT_LABEL[k.haeufigkeit]}»${roh !== null && roh > NORMAL_MAX ? `, rechnerisch ${roh}, begrenzt auf ${NORMAL_MAX}; bei erhöhtem Risiko bis ${OBERGRENZE_STICHPROBE}` : ""})`;
     }
 
     const datentests: Datentest[] = [];

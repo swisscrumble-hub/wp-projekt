@@ -127,7 +127,7 @@ test("Prüfplan: Umfang nach Häufigkeit, automatisierte Kontrollen = Test of on
   assert.match(f("K2").umfangText, /Test of one/);
   assert.equal(f("K2").handlung, "IT-gestützte Prüfungshandlung");
   assert.equal(f("K1").n, null);
-  assert.match(f("K1").umfangText, /10 %.*höchstens 40/);
+  assert.match(f("K1").umfangText, /10 %.*höchstens 10.*15/);
   assert.equal(f("K3").n, 2, "monatlich = 2");
   assert.equal(f("K4").n, 1, "jährlich = 1");
   const unklar = erzeugePruefplan(leseIksMatrix([["Kontrolle", "Häufigkeit"], ["X", "nach Vereinbarung"]], 0, { kontrolle: 0, haeufigkeit: 1 }).kontrollen, { pruefjahr: 2026 });

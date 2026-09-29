@@ -7,7 +7,7 @@ import { baueNotiz } from "@/lib/dokumentation";
 import type { ImportErgebnis, Importiert, Spalten } from "@/lib/import";
 import { kontrollDatentests, kontrollStichprobe, type DatentestErgebnis } from "@/lib/pruefung/kontrolle";
 import { attributStichprobenumfang, type AuswahlErgebnis } from "@/lib/pruefung/stichprobe";
-import { kontrollUmfang, type KontrollUmfang } from "@/lib/pruefung/umfang";
+import { NORMAL_MAX, OBERGRENZE_STICHPROBE, kontrollUmfang, pruefeObergrenze, type KontrollUmfang } from "@/lib/pruefung/umfang";
 import type { IksKontrolle, Pruefplanzeile } from "@/lib/iks";
 import Abstimmung from "@/components/Abstimmung";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
@@ -32,6 +32,7 @@ export default function KontrollSeite() {
   const [erwartet, setErwartet] = useState("0");
   const [methode, setMethode] = useState<"systematisch" | "zufaellig">("systematisch");
   const [nManuell, setNManuell] = useState("");
+  const [erhoeht, setErhoeht] = useState(false);
   const [seed, setSeed] = useState(() => String(Math.floor(Math.random() * 1_000_000)));
   const [gezogen, setGezogen] = useState<{ auswahl: AuswahlErgebnis; notiz: string } | null>(null);
   const [datentests, setDatentests] = useState<{ ergebnisse: DatentestErgebnis[]; hinweise: string[] } | null>(null);
@@ -52,14 +53,17 @@ export default function KontrollSeite() {
     try {
       if (verfahren === "statistisch") {
         const u = attributStichprobenumfang({ tolerierbareRate: Number(rate), konfidenz: Number(konfidenz), erwarteteAbweichungen: Number(erwartet) });
-        const n = Math.min(u.n, posten.length);
-        return { ok: { n, vollpruefung: n >= posten.length, normbezug: hwpZitat([764]), hinweise: ["Statistische Attributprüfung (Binomial); Umfang wächst mit erwarteten Abweichungen und tiefer tolerierbarer Rate (Rz. 764)."] } as KontrollUmfang };
+        const grenze = erhoeht ? OBERGRENZE_STICHPROBE : NORMAL_MAX;
+        const n = Math.min(u.n, grenze, posten.length);
+        const hinweise = ["Statistische Attributprüfung (Binomial); Umfang wächst mit erwarteten Abweichungen und tiefer tolerierbarer Rate (Rz. 764)."];
+        if (u.n > n && n < posten.length) hinweise.push(`Rechnerisch wären ${u.n} Vorgänge nötig; vorgeschlagen sind höchstens ${n} (Normalfall bis ${NORMAL_MAX}, erhöhtes Risiko bis ${OBERGRENZE_STICHPROBE}). Die statistische Sicherheit wird dadurch nicht mehr erreicht: Festlegung im Ermessen begründen.`);
+        return { ok: { n, vollpruefung: n >= posten.length, normbezug: hwpZitat([764]), hinweise } as KontrollUmfang };
       }
-      return { ok: kontrollUmfang({ haeufigkeit, anzahlVorgaenge: posten.length }) };
+      return { ok: kontrollUmfang({ haeufigkeit, anzahlVorgaenge: posten.length, erhoehtesRisiko: erhoeht }) };
     } catch (e) {
       return { fehler: e instanceof Error ? e.message : "Umfang nicht berechenbar." };
     }
-  }, [posten, verfahren, rate, konfidenz, erwartet, haeufigkeit]);
+  }, [posten, verfahren, rate, konfidenz, erwartet, haeufigkeit, erhoeht]);
 
   function ausMatrix(m: IksKontrolle, z: Pruefplanzeile) {
     waehle("eigen");
@@ -95,6 +99,7 @@ export default function KontrollSeite() {
       setDatentests(tests.length ? kontrollDatentests(posten, quelle.spalten, tests) : null);
       const n = nManuell.trim() ? Number(nManuell) : vorgeschlagen?.ok ? vorgeschlagen.ok.n : NaN;
       if (!Number.isInteger(n) || n < 1) throw new Error("Umfang nicht festgelegt.");
+      pruefeObergrenze(n);
       const a = kontrollStichprobe(posten, n, Number(seed), methode);
       const notiz = baueNotiz({
         bereich: "Kontrollprüfung",
@@ -240,6 +245,10 @@ export default function KontrollSeite() {
                       <Feld label="Erwartete Abweichungen" inputMode="numeric" value={erwartet} onChange={(e) => setErwartet(e.target.value)} />
                     </div>
                   )}
+                  <label className="flex min-h-11 touch-manipulation items-center gap-3 text-sm text-slate-800">
+                    <input type="checkbox" checked={erhoeht} onChange={(e) => setErhoeht(e.target.checked)} className="h-6 w-6" />
+                    Erhöhtes Risiko (Vorschlag bis {OBERGRENZE_STICHPROBE} statt {NORMAL_MAX} Vorgänge)
+                  </label>
                   {vorgeschlagen?.fehler && <Fehler text={vorgeschlagen.fehler} />}
                   {vorgeschlagen?.ok && (
                     <div className="space-y-2">
@@ -249,7 +258,7 @@ export default function KontrollSeite() {
                       <Hinweise liste={vorgeschlagen.ok.hinweise} />
                     </div>
                   )}
-                  <Feld label="Umfang von Hand festlegen (optional)" inputMode="numeric" value={nManuell} onChange={(e) => setNManuell(e.target.value)} hilfe="Pflichtgemässes Ermessen; überschreibt den Vorschlag" />
+                  <Feld label="Umfang von Hand festlegen (optional)" inputMode="numeric" value={nManuell} onChange={(e) => setNManuell(e.target.value)} hilfe={`Pflichtgemässes Ermessen; überschreibt den Vorschlag; höchstens ${OBERGRENZE_STICHPROBE}`} />
                   <Knopf onClick={pruefenUndZiehen}>Datenprüfung durchführen und Stichprobe ziehen</Knopf>
                   <Fehler text={fehler} />
                 </Karte>
