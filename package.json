@@ -1,0 +1,15 @@
+{
+  "name": "wp-projekt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Automatisierbare Prüfungshandlungen (Stichproben, Analytik) für die Wirtschaftsprüfung",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

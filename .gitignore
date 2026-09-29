@@ -1,0 +1,27 @@
+# Abhängigkeiten und Build
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Zugangsdaten und Umgebungsvariablen: nie ins Repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.vercel
+
+# Generierter Code, Logs, System
+src/generated/
+*.log
+npm-debug.log*
+.DS_Store
+
+# Mandanten- und Prüfungsdaten: nie ins Repo
+daten/
+*.xlsx
+*.csv

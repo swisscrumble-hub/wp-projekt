@@ -21,11 +21,16 @@ try {
   fail('Prisma-Client-Generierung fehlgeschlagen.');
 }
 
-try {
-  log('2. Prisma: Führe Migrationen aus…');
-  execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-} catch (e) {
-  fail('Prisma-Migration fehlgeschlagen.');
+if (process.env.DIRECT_URL || process.env.DATABASE_URL) {
+  try {
+    log('2. Prisma: Führe Migrationen aus…');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+  } catch (e) {
+    fail('Prisma-Migration fehlgeschlagen.');
+  }
+} else {
+  // Nur Namen nennen, nie Werte ausgeben.
+  console.error('[WARNUNG] DATABASE_URL/DIRECT_URL fehlen: Migrationen werden übersprungen. In Vercel unter Settings → Environment Variables setzen.');
 }
 
 try {
