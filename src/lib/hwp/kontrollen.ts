@@ -96,7 +96,7 @@ export const KONTROLLEN: Kontrolle[] = [
     nachweis: "Abstimmung durch unabhängige Person, offene Differenzen zeitnah geklärt, Visum", mitBetrag: false },
   { id: "ab-manuell", prozess: "Abschluss und Journal", titel: "Freigabe manueller Journalbuchungen", wirkung: "präventiv", ausfuehrung: "manuell", haeufigkeit: "haeufiger",
     population: "Manuelle Journalbuchungen des Jahres: Belegnummer, Datum, Betrag, Erfasser, Freigeber, Freigabedatum", pruefhandlung: "Nachvollzug der Kontrollaktivität (z.B. Nachrechnen)", datentests: ["funktionstrennung", "freigabe_fehlt", "freigabe_verspaetet"],
-    nachweis: "Begründung und Unterlagen zur Buchung, Freigabe durch eine zweite Person; Bezug zur Journalprüfung (Rz. 375)", mitBetrag: true },
+    nachweis: "Begründung und Unterlagen zur Buchung, Freigabe durch eine zweite Person; Bezug zur Journalprüfung (ISA-CH 240 Tz. 33(a); HWP Rz. 375)", mitBetrag: true },
   { id: "it-automatisiert", prozess: "IT (automatisierte Kontrollen)", titel: "Automatisierte Anwendungskontrolle (z.B. Plausibilitätsprüfung, automatischer Abgleich)", wirkung: "präventiv", ausfuehrung: "automatisiert", haeufigkeit: "automatisiert",
     population: "Vorgangsliste, auf die die automatisierte Kontrolle wirkt (optional)", pruefhandlung: "IT-gestützte Prüfungshandlung", datentests: [],
     nachweis: "Test of one nach Prüfung der generellen IT-Kontrollen; bei Systemänderungen im Zeitraum vor und nach der Änderung (Rz. 602)", mitBetrag: false },

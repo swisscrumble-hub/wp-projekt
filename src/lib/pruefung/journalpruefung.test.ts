@@ -79,13 +79,14 @@ test("Wiederholung: gleicher Betrag auf gleichem Konto, monatliche Abfolge wird 
 test("Fehlende Spalten: Kriterium «nicht prüfbar», nie stillschweigend erfüllt", () => {
   const s: Spalten = { id: 0, betrag: 1 };
   const r = pruefeJournal([b({ id: "a" }), b({ id: "b" })], s, P);
-  for (const k of ["selten_konto", "selten_erfasser", "periodenende", "nachtraeglich", "ohne_erlaeuterung", "risikokonto", "manuell"] as const) {
+  for (const k of ["selten_konto", "selten_erfasser", "periodenende", "nachtraeglich", "ohne_erlaeuterung", "ohne_konto", "risikokonto", "manuell"] as const) {
     assert.equal(r.abdeckung[k].geprueft, 0, k);
     assert.equal(r.abdeckung[k].nichtPruefbar, 2, k);
   }
   assert.match(r.hinweise.join(" "), /nicht prüfbar/);
   assert.match(r.hinweise[0]!, /keine Feststellung/);
-  assert.match(r.hinweise[1]!, /ISA 240 \(Revised\)/);
+  assert.match(r.hinweise[1]!, /ISA-CH 240/);
+  assert.match(r.hinweise[1]!, /nicht die überarbeitete Fassung ISA 240 \(Revised\)/);
 });
 
 test("Alle Kriterien haben eine Abdeckungszeile; Score = Anzahl Treffer; Sortierung nach Score, dann Betrag", () => {
@@ -105,7 +106,7 @@ test("Auswahl: Risikoanteil zuerst, Zufallsanteil aus dem Rest, reproduzierbar, 
   assert.equal(a.ausgewaehlt.length, 10);
   assert.equal(new Set(a.ausgewaehlt).size, 10);
   assert.equal(a.zufaellig.length, 2);
-  assert.ok(a.risikobasiert.includes("H1") && a.risikobasiert.includes("H2"));
+  assert.ok(a.periodenende.includes("H1") && a.periodenende.includes("H2"), "Buchungen zum Periodenende sind Pflichtbestandteil");
   assert.deepEqual(a.ausgewaehlt, waehleJournal(r, 10, 42, 0.2).ausgewaehlt);
   assert.notDeepEqual(a.zufaellig, waehleJournal(r, 10, 43, 0.2).zufaellig);
   const alle = waehleJournal(r, 5000, 1);
@@ -117,4 +118,42 @@ test("Ungültige Eingaben", () => {
   assert.throws(() => pruefeJournal([b()], VOLL, { stichtag: "kein Datum" }), JournalFehler);
   assert.throws(() => pruefeJournal([], VOLL, P), JournalFehler);
   assert.throws(() => pruefeJournal([b()], VOLL, { ...P, wiederholungMin: 1 }), JournalFehler);
+});
+
+test("Ohne Kontonummer (ISA-CH 240 A44 (d))", () => {
+  const r = pruefeJournal([...grund(), b({ id: "OK", konto: undefined })], VOLL, P);
+  assert.ok(kriterien(r, "OK").includes("ohne_konto"));
+  assert.ok(!kriterien(r, "G0").includes("ohne_konto"));
+});
+
+test("Ergänzende HWP-Kriterien lassen sich abschalten: keine Treffer, nicht in der Abdeckung, Hinweis vermerkt", () => {
+  const journal = [b({ id: "S", datum: "2025-06-14", manuell: true }), b({ id: "W1", betrag: 777.77, datum: "2025-01-31" }), b({ id: "W2", betrag: 777.77, datum: "2025-02-28" }), b({ id: "W3", betrag: 777.77, datum: "2025-03-31" })];
+  const an = pruefeJournal(journal, VOLL, P);
+  assert.ok(kriterien(an, "S").includes("wochenende_feiertag"));
+  const aus = pruefeJournal(journal, VOLL, { ...P, ergaenzendeKriterien: false });
+  assert.ok(!kriterien(aus, "S").includes("wochenende_feiertag"));
+  assert.ok(!kriterien(aus, "W1").includes("wiederholung"));
+  assert.equal(aus.abdeckung.wochenende_feiertag.aktiv, false);
+  assert.equal(aus.abdeckung.wochenende_feiertag.geprueft, 0);
+  assert.equal(aus.abdeckung.wochenende_feiertag.nichtPruefbar, 0);
+  assert.match(aus.hinweise.join(" "), /ausgeschaltet/);
+  assert.match(an.hinweise.join(" "), /nicht im Text des ISA-CH 240/);
+});
+
+test("Auswahl: Ohne Buchungen zum Periodenende wird die Lücke gemeldet (Tz. 33(a)(ii))", () => {
+  const r = pruefeJournal(grund(), VOLL, P);
+  const a = waehleJournal(r, 10, 1);
+  assert.equal(a.periodenende.length, 0);
+  assert.match(a.hinweise.join(" "), /Tz\. 33\(a\)\(ii\) ist nicht erfüllt/);
+});
+
+test("Auswahl: Periodenende-Anteil begrenzt, Rest risikobasiert/zufällig, keine Duplikate", () => {
+  const spaet = Array.from({ length: 10 }, (_, i) => b({ id: `P${i}`, datum: "2025-12-30", betrag: 100 + i }));
+  const r = pruefeJournal([...grund(), ...spaet], VOLL, P);
+  const a = waehleJournal(r, 10, 5, 0.2, 0.3);
+  assert.equal(a.periodenende.length, 3);
+  assert.equal(a.zufaellig.length, 2);
+  assert.equal(new Set(a.ausgewaehlt).size, a.ausgewaehlt.length);
+  assert.equal(a.ausgewaehlt.length, 10);
+  assert.match(a.hinweise.join(" "), /Von 10 Buchungen zum Ende des Berichtszeitraums/);
 });

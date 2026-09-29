@@ -1,15 +1,17 @@
 /**
- * Journalprüfung (Journal Entry Testing, JET) nach den Merkmalen erhöhten Risikos dolosen Handelns.
+ * Journalprüfung (Journal Entry Testing, JET) nach den Merkmalen manipulierter Journalbuchungen.
  *
- * QUELLE: HWP OR 2024, Teil III.3.9.4.2, Rz. 374–377 (mit den Beispielmerkmalen aus ISA-CH 240). Die Kriterien unten
- * bilden die Aufzählung in Rz. 375 ab. HINWEIS: Der Abgleich mit dem Wortlaut von ISA 240 (Revised) war nicht Teil der
- * bereitgestellten Unterlagen und ist durch den Prüfer vorzunehmen; Kriterien und Schwellen sind Parameter.
+ * QUELLEN: ISA-CH 240 (gültig ab 15.12.2022), Tz. 32, 33(a) und A42–A45 (Merkmale in A44) sowie HWP OR 2024, Teil III.3.9.4.2,
+ * Rz. 374–377. Zwei Kriterien (Wochenende/Feiertag, Wiederholungen) stehen nur im HWP (Rz. 375), nicht im Text des ISA-CH 240;
+ * sie sind als «ergänzend» gekennzeichnet und abschaltbar. Es handelt sich nicht um die überarbeitete Fassung ISA 240 (Revised);
+ * deren Abgleich bleibt dem Prüfer überlassen. Kriterien und Schwellen sind Parameter.
  *
  * Treffer sind Prüfhinweise, keine Feststellung dolosen Handelns; ohne Treffer ist nichts bewiesen. Fehlen Spalten, die ein
  * Kriterium braucht, wird es als «nicht prüfbar» ausgewiesen und nie stillschweigend als «ohne Auffälligkeit» gewertet.
- * Art, zeitliche Einteilung und Umfang legt der Prüfer nach pflichtgemässem Ermessen fest (Rz. 377).
+ * Art, zeitliche Einteilung und Umfang legt der Prüfer nach pflichtgemässem Ermessen fest (A45); Buchungen zum Ende des
+ * Berichtszeitraums sind auszuwählen (Tz. 33(a)(ii)), ob auch solche des gesamten Zeitraums nötig sind, ist zu erwägen (Tz. 33(a)(iii)).
  */
-import { hwpZitat } from "../hwp/quelle";
+import { hwpZitat, isaZitat } from "../hwp/quelle";
 import type { Importiert, Spalten } from "../import";
 import { istIsoDatum, tagNummer, wochentag } from "./datum";
 import { StichprobenFehler, zufallsauswahl } from "./stichprobe";
@@ -17,16 +19,17 @@ import { StichprobenFehler, zufallsauswahl } from "./stichprobe";
 export class JournalFehler extends Error {}
 
 export const KRITERIEN = {
-  selten_konto: { titel: "Ungewöhnliche oder selten verwendete Konten", braucht: "Spalte Konto" },
-  selten_erfasser: { titel: "Buchung durch Personen, die typischerweise keine Journalbuchungen vornehmen", braucht: "Spalte Erfasser" },
-  periodenende: { titel: "Buchung zum Ende des Berichtszeitraums", braucht: "Spalte Datum" },
-  nachtraeglich: { titel: "Nachträgliche Abschlussbuchung / Erfassung vor oder während der Abschlussaufstellung", braucht: "Spalten Datum und Erfassungsdatum" },
-  ohne_erlaeuterung: { titel: "Keine oder kaum Erläuterung", braucht: "Spalte Text" },
-  wochenende_feiertag: { titel: "Manuelle Buchung an Wochenend- oder Feiertagen", braucht: "Spalte Datum (Buchungsart für «manuell»)" },
-  runde_zahl: { titel: "Runde Zahlen oder gleiche Endziffern", braucht: "Betrag" },
-  wiederholung: { titel: "Buchungen wiederholen sich in regelmässiger oder unregelmässiger Frequenz", braucht: "Betrag (Konto und Datum verbessern die Aussage)" },
-  risikokonto: { titel: "Konto mit erhöhtem Risiko (definierte Risikokonten: Schätzungen, konzerninterne Geschäftsvorfälle, nicht abgestimmte Konten u.a.)", braucht: "Spalte Konto und Liste der Risikokonten" },
-  manuell: { titel: "Nicht standardisierte (manuelle) Journalbuchung", braucht: "Spalte Buchungsart" },
+  selten_konto: { titel: "Ungewöhnliche oder selten verwendete Konten", braucht: "Spalte Konto", quelle: "ISA-CH 240 A44 (a)", ergaenzend: false },
+  selten_erfasser: { titel: "Buchung durch Personen, die typischerweise keine Journalbuchungen vornehmen", braucht: "Spalte Erfasser", quelle: "ISA-CH 240 A44 (b)", ergaenzend: false },
+  periodenende: { titel: "Buchung zum Ende des Berichtszeitraums", braucht: "Spalte Datum", quelle: "ISA-CH 240 Tz. 33(a)(ii), A44 (c), A45", ergaenzend: false },
+  nachtraeglich: { titel: "Nachträgliche Abschlussbuchung / Erfassung vor oder während der Abschlussaufstellung", braucht: "Spalten Datum und Erfassungsdatum", quelle: "ISA-CH 240 A44 (c), (d)", ergaenzend: false },
+  ohne_erlaeuterung: { titel: "Keine oder kaum Erläuterung", braucht: "Spalte Text", quelle: "ISA-CH 240 A44 (c)", ergaenzend: false },
+  ohne_konto: { titel: "Buchung ohne Kontonummer", braucht: "Spalte Konto", quelle: "ISA-CH 240 A44 (d)", ergaenzend: false },
+  runde_zahl: { titel: "Runde Zahlen oder gleiche Endziffern", braucht: "Betrag", quelle: "ISA-CH 240 A44 (e)", ergaenzend: false },
+  risikokonto: { titel: "Konto mit erhöhtem Risiko (Schätzungen, konzerninterne Geschäftsvorfälle, nicht abgestimmte Differenzen, in der Vergangenheit anfällig u.a.)", braucht: "Spalte Konto und Liste der Risikokonten", quelle: "ISA-CH 240 A44 (Art und Komplexität der Konten)", ergaenzend: false },
+  manuell: { titel: "Nicht standardisierte (manuelle) Journalbuchung", braucht: "Spalte Buchungsart", quelle: "ISA-CH 240 A44 (ausserhalb des gewöhnlichen Geschäftsverlaufs)", ergaenzend: false },
+  wochenende_feiertag: { titel: "Manuelle Buchung an Wochenend- oder Feiertagen", braucht: "Spalte Datum (Buchungsart für «manuell»)", quelle: "HWP Rz. 375 (ergänzend, nicht im ISA-CH 240)", ergaenzend: true },
+  wiederholung: { titel: "Buchungen wiederholen sich in regelmässiger oder unregelmässiger Frequenz", braucht: "Betrag (Konto und Datum verbessern die Aussage)", quelle: "HWP Rz. 375 (ergänzend, nicht im ISA-CH 240)", ergaenzend: true },
 } as const;
 
 export type Kriterium = keyof typeof KRITERIEN;
@@ -52,9 +55,11 @@ export type JournalParameter = {
   risikokonten?: string[];
   /** Ab so vielen gleichen Buchungen (Konto und Betrag) gilt eine Wiederholung (Standard 3) */
   wiederholungMin?: number;
+  /** Ergänzende Kriterien aus dem HWP (Wochenende/Feiertag, Wiederholungen) anwenden; Standard: ja */
+  ergaenzendeKriterien?: boolean;
 };
 
-export type Abdeckung = { geprueft: number; nichtPruefbar: number; treffer: number };
+export type Abdeckung = { geprueft: number; nichtPruefbar: number; treffer: number; aktiv: boolean };
 
 export type JournalErgebnisZeile = {
   id: string;
@@ -103,20 +108,27 @@ export function pruefeJournal(posten: Importiert[], spalten: Spalten, p: Journal
   const risikokonten = new Set((p.risikokonten ?? []).map((k) => k.trim()).filter(Boolean));
   const stichtag = tagNummer(p.stichtag);
 
-  const abd = Object.fromEntries(KRITERIUM_IDS.map((k) => [k, { geprueft: 0, nichtPruefbar: 0, treffer: 0 }])) as Record<Kriterium, Abdeckung>;
+  const ergaenzend = p.ergaenzendeKriterien !== false;
+  const abd = Object.fromEntries(KRITERIUM_IDS.map((k) => [k, { geprueft: 0, nichtPruefbar: 0, treffer: 0, aktiv: ergaenzend || !KRITERIEN[k].ergaenzend }])) as Record<Kriterium, Abdeckung>;
   const treffer = new Map<string, { kriterien: Kriterium[]; gruende: string[] }>(posten.map((x) => [x.id, { kriterien: [], gruende: [] }]));
   const hinweise = [
     "Treffer sind Prüfhinweise, keine Feststellung dolosen Handelns. Ohne Treffer ist nichts bewiesen; die Merkmale sind ein Hilfsmittel (Rz. 377).",
-    "Abgleich der Kriterien mit dem Wortlaut von ISA 240 (Revised) und die Festlegung der Schwellen sind durch den Prüfer vorzunehmen.",
+    `Grundlage: ${isaZitat("33(a), A42–A45")} (nicht die überarbeitete Fassung ISA 240 (Revised)) und HWP Rz. 374–377. Die Festlegung der Schwellen und der Abgleich mit ISA 240 (Revised) sind durch den Prüfer vorzunehmen.`,
+    ...(ergaenzend ? ["Wochenende/Feiertag und Wiederholungen sind Ergänzungen aus dem HWP (Rz. 375) und stehen nicht im Text des ISA-CH 240."] : ["Ergänzende Kriterien aus dem HWP (Wochenende/Feiertag, Wiederholungen) sind ausgeschaltet."]),
   ];
 
   const markiere = (k: Kriterium, id: string, grund: string) => {
+    if (!abd[k].aktiv) return;
     const t = treffer.get(id)!;
     t.kriterien.push(k);
     t.gruende.push(`${KRITERIEN[k].titel}: ${grund}`);
     abd[k].treffer++;
   };
-  const pruefbar = (k: Kriterium, ok: boolean) => (ok ? abd[k].geprueft++ : abd[k].nichtPruefbar++);
+  const pruefbar = (k: Kriterium, ok: boolean) => {
+    if (!abd[k].aktiv) return;
+    if (ok) abd[k].geprueft++;
+    else abd[k].nichtPruefbar++;
+  };
 
   // Häufigkeiten für seltene Konten und Erfasser
   const proKonto = new Map<string, number>();
@@ -168,6 +180,10 @@ export function pruefeJournal(posten: Importiert[], spalten: Spalten, p: Journal
     pruefbar("ohne_erlaeuterung", spalten.text !== undefined);
     if (spalten.text !== undefined && (x.text ?? "").length < textMin) markiere("ohne_erlaeuterung", x.id, x.text ? `Text «${x.text}» hat weniger als ${textMin} Zeichen` : "kein Text");
 
+    // 5b. ohne Kontonummer
+    pruefbar("ohne_konto", spalten.konto !== undefined);
+    if (spalten.konto !== undefined && !x.konto) markiere("ohne_konto", x.id, "keine Kontonummer");
+
     // 6. Wochenende/Feiertag (nur manuelle Buchungen, wenn die Buchungsart vorhanden ist)
     const zeitOk = spalten.datum !== undefined && !!x.datum && (spalten.manuell === undefined || x.manuell !== undefined);
     pruefbar("wochenende_feiertag", zeitOk);
@@ -210,7 +226,7 @@ export function pruefeJournal(posten: Importiert[], spalten: Spalten, p: Journal
     }
   }
   for (const k of KRITERIUM_IDS) {
-    if (abd[k].nichtPruefbar > 0) hinweise.push(`Kriterium «${KRITERIEN[k].titel}»: ${abd[k].nichtPruefbar} von ${posten.length} Buchungen nicht prüfbar (${KRITERIEN[k].braucht}).`);
+    if (abd[k].aktiv && abd[k].nichtPruefbar > 0) hinweise.push(`Kriterium «${KRITERIEN[k].titel}»: ${abd[k].nichtPruefbar} von ${posten.length} Buchungen nicht prüfbar (${KRITERIEN[k].braucht}).`);
   }
 
   const ergebnisse: JournalErgebnisZeile[] = posten
@@ -220,34 +236,49 @@ export function pruefeJournal(posten: Importiert[], spalten: Spalten, p: Journal
     })
     .sort((a, b) => b.score - a.score || Math.abs(b.betrag) - Math.abs(a.betrag) || a.excelZeile - b.excelZeile);
 
-  return { normbezug: hwpZitat([374, 375, 376, 377]), anzahl: posten.length, ergebnisse, abdeckung: abd, anteilManuell, hinweise };
+  return { normbezug: `${isaZitat("32, 33(a), A42–A45")}; ${hwpZitat([374, 375, 376, 377])}`, anzahl: posten.length, ergebnisse, abdeckung: abd, anteilManuell, hinweise };
 }
 
 export type JournalAuswahl = {
   seed: number;
+  /** Buchungen zum Ende des Berichtszeitraums bzw. nachträglich erfasst (Tz. 33(a)(ii)) */
+  periodenende: string[];
   risikobasiert: string[];
   zufaellig: string[];
-  /** Reihenfolge: risikobasiert, dann zufällig */
+  /** Reihenfolge: Periodenende, risikobasiert, zufällig */
   ausgewaehlt: string[];
   hinweise: string[];
 };
 
 /**
- * Auswahl der zu prüfenden Buchungen: die höchsten Risikoscores zuerst, dazu ein Zufallsanteil aus allen übrigen Buchungen
- * (Unvorhersehbarkeit; auch Buchungen ohne Treffer haben eine Chance, Rz. 767). Der Seed gehört in die Dokumentation.
+ * Auswahl der zu prüfenden Buchungen. Drei Teile: (1) Buchungen zum Ende des Berichtszeitraums bzw. nachträglich erfasste, denn
+ * diese sind auszuwählen (Tz. 33(a)(ii), A45); (2) die übrigen mit den höchsten Risikoscores; (3) ein Zufallsanteil aus allen
+ * übrigen Buchungen (Unvorhersehbarkeit; deckt den gesamten Berichtszeitraum ab, Tz. 33(a)(iii)). Der Seed gehört in die Dokumentation.
  */
-export function waehleJournal(ergebnis: JournalErgebnis, n: number, seed: number, zufallsAnteil = 0.2): JournalAuswahl {
+export function waehleJournal(ergebnis: JournalErgebnis, n: number, seed: number, zufallsAnteil = 0.2, periodenendeAnteil = 0.3): JournalAuswahl {
   if (!Number.isInteger(n) || n < 1) throw new StichprobenFehler("Der Umfang muss eine ganze Zahl ≥ 1 sein.");
-  if (!(zufallsAnteil >= 0 && zufallsAnteil <= 1)) throw new StichprobenFehler("Der Zufallsanteil muss zwischen 0 und 1 liegen.");
+  if (!(zufallsAnteil >= 0 && zufallsAnteil <= 1) || !(periodenendeAnteil >= 0 && periodenendeAnteil <= 1)) throw new StichprobenFehler("Die Anteile müssen zwischen 0 und 1 liegen.");
   const gesamt = Math.min(n, ergebnis.ergebnisse.length);
   const nZufall = Math.min(Math.round(gesamt * zufallsAnteil), gesamt);
-  const mitTreffer = ergebnis.ergebnisse.filter((e) => e.score > 0);
-  const risiko = mitTreffer.slice(0, gesamt - nZufall).map((e) => e.id);
-  const rest = ergebnis.ergebnisse.filter((e) => !risiko.includes(e.id));
-  const nRest = gesamt - risiko.length;
+  const nPeriode = Math.min(Math.round(gesamt * periodenendeAnteil), gesamt - nZufall);
+
+  const periodenPool = ergebnis.ergebnisse.filter((e) => e.kriterien.includes("periodenende") || e.kriterien.includes("nachtraeglich"));
+  const periode = periodenPool.slice(0, nPeriode).map((e) => e.id);
+  const risikoPlaetze = Math.max(gesamt - nZufall - periode.length, 0);
+  const risiko = ergebnis.ergebnisse.filter((e) => e.score > 0 && !periode.includes(e.id)).slice(0, risikoPlaetze).map((e) => e.id);
+  const belegt = new Set([...periode, ...risiko]);
+  const rest = ergebnis.ergebnisse.filter((e) => !belegt.has(e.id));
+  const nRest = gesamt - belegt.size;
   const zufall = nRest > 0 && rest.length > 0 ? zufallsauswahl(rest.map((e) => ({ id: e.id, buchwert: Math.abs(e.betrag) })), Math.min(nRest, rest.length), seed).ausgewaehlt : [];
+
   const hinweise: string[] = [];
-  if (mitTreffer.length < gesamt - nZufall) hinweise.push(`Nur ${mitTreffer.length} Buchungen mit Treffer; der Rest der Auswahl ist zufällig gezogen.`);
+  if (periodenPool.length === 0) {
+    hinweise.push("Keine Buchungen zum Ende des Berichtszeitraums oder mit nachträglicher Erfassung gefunden (oder Datum/Erfassungsdatum fehlt): Die Auswahl nach Tz. 33(a)(ii) ist nicht erfüllt. Ursache klären.");
+  } else if (periode.length < periodenPool.length) {
+    hinweise.push(`Von ${periodenPool.length} Buchungen zum Ende des Berichtszeitraums bzw. mit nachträglicher Erfassung wurden ${periode.length} ausgewählt; Umfang nach pflichtgemässem Ermessen (A45), bei Bedarf Umfang oder Periodenende-Anteil erhöhen.`);
+  }
+  hinweise.push("Der Zufallsanteil stützt sich auf den gesamten Berichtszeitraum (Tz. 33(a)(iii)); ob darüber hinaus weitere Buchungen zu prüfen sind, legt der Prüfer fest.");
+  if (risiko.length < risikoPlaetze) hinweise.push(`Nur ${risiko.length} weitere Buchungen mit Treffer; der Rest der Auswahl ist zufällig gezogen.`);
   if (n > ergebnis.ergebnisse.length) hinweise.push("Der Umfang übersteigt die Anzahl Buchungen: alle Buchungen ausgewählt.");
-  return { seed, risikobasiert: risiko, zufaellig: zufall, ausgewaehlt: [...risiko, ...zufall], hinweise };
+  return { seed, periodenende: periode, risikobasiert: risiko, zufaellig: zufall, ausgewaehlt: [...periode, ...risiko, ...zufall], hinweise };
 }
