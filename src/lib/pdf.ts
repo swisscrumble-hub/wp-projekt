@@ -152,9 +152,13 @@ export function tabelleAusElementen(roh: PdfElement[], opt: { lueckeFaktor?: num
 
 // --- pdf.js -------------------------------------------------------------------
 
-type PdfSeite = { getTextContent(): Promise<{ items: unknown[] }> };
+type PdfSeite = { getTextContent(): Promise<{ items: unknown[] }>; getOperatorList?(): Promise<{ fnArray: number[] }> };
 type PdfDokument = { numPages: number; getPage(n: number): Promise<PdfSeite>; destroy?: () => Promise<void> };
-export type PdfJs = { getDocument(src: { data: Uint8Array; isEvalSupported: boolean; enableXfa: boolean }): { promise: Promise<PdfDokument> } };
+export type PdfJs = {
+  getDocument(src: { data: Uint8Array; isEvalSupported: boolean; enableXfa: boolean }): { promise: Promise<PdfDokument> };
+  /** Operator-Codes von pdf.js (für die Bild-Erkennung in der Diagnose) */
+  OPS?: Record<string, number>;
+};
 
 type TextItem = { str?: unknown; transform?: unknown; width?: unknown; height?: unknown };
 
@@ -170,10 +174,12 @@ export async function lesePdf(daten: ArrayBuffer | Uint8Array, pdfjs: PdfJs): Pr
   }
   if (doc.numPages > MAX_SEITEN) throw new PdfFehler(`Das PDF hat mehr als ${MAX_SEITEN} Seiten; bitte eingrenzen.`);
   const elemente: PdfElement[] = [];
+  let textElementeRoh = 0;
   for (let s = 1; s <= doc.numPages; s++) {
     const inhalt = await (await doc.getPage(s)).getTextContent();
     for (const it of inhalt.items as TextItem[]) {
       if (typeof it.str !== "string" || !Array.isArray(it.transform)) continue;
+      textElementeRoh++;
       const t = it.transform as number[];
       const x0 = Number(t[4]);
       const y = Number(t[5]);
@@ -183,6 +189,40 @@ export async function lesePdf(daten: ArrayBuffer | Uint8Array, pdfjs: PdfJs): Pr
       elemente.push({ seite: s, x0, x1: x0 + breite, y, h: hoehe, text: it.str });
     }
   }
+  if (!elemente.some((e) => e.text.trim() !== "")) {
+    const bilder = await zaehleBilder(doc, pdfjs);
+    await doc.destroy?.();
+    throw new PdfFehler(keinTextMeldung(doc.numPages, textElementeRoh, bilder));
+  }
   await doc.destroy?.();
   return tabelleAusElementen(elemente);
+}
+
+/** Anzahl Bilder im PDF (null, wenn pdf.js sie nicht zählen kann). Nur im Fehlerfall aufgerufen. */
+async function zaehleBilder(doc: PdfDokument, pdfjs: PdfJs): Promise<number | null> {
+  const ops = pdfjs.OPS;
+  if (!ops) return null;
+  const bildCodes = new Set([ops.paintImageXObject, ops.paintInlineImageXObject, ops.paintImageMaskXObject, ops.paintJpegXObject].filter((c): c is number => typeof c === "number"));
+  if (bildCodes.size === 0) return null;
+  let n = 0;
+  try {
+    for (let s = 1; s <= Math.min(doc.numPages, 50); s++) {
+      const seite = await doc.getPage(s);
+      if (!seite.getOperatorList) return null;
+      n += (await seite.getOperatorList()).fnArray.filter((c) => bildCodes.has(c)).length;
+    }
+  } catch {
+    return null;
+  }
+  return n;
+}
+
+export function keinTextMeldung(seiten: number, textElemente: number, bilder: number | null): string {
+  const befund =
+    bilder && bilder > 0
+      ? `Es enthält ${bilder} Bild(er) und keinen Text: vermutlich ein gescanntes PDF.`
+      : bilder === 0
+        ? "Es enthält weder Text noch Bilder: der Text ist vermutlich als Umrisse (Pfade) gespeichert oder die Seiten sind leer."
+        : "Es enthält keinen lesbaren Text.";
+  return `Im PDF wurde kein Text gefunden (${seiten} Seite(n), ${textElemente} Textelement(e)). ${befund} Es gibt keine Texterkennung (OCR). Lässt sich Text im PDF-Programm markieren? Wenn nicht, bitte die Tabelle als Excel exportieren.`;
 }
