@@ -26,6 +26,8 @@ Annahmen und Grenzen (stehen auch in den Ergebnissen):
 
 Vier Seiten unter Anmeldung: `/stichproben`, `/analytik`, `/betrug`, `/going-concern`. Daten werden eingefügt (Excel/CSV, Trennzeichen Tab, `;` oder `,`; Zahlen wie `1'234.50` oder `1234,50`) und **im Browser berechnet**; Mandantendaten werden nicht an einen Server gesendet und nicht gespeichert.
 
+**Excel-Import (Stichproben):** `.xlsx` mit Kontodetails oder Buchungsjournal wählen, Kopfzeile und Spalten bestätigen (werden vorgeschlagen), optional filtern (Konto, Datum, Mindestbetrag). Der Import weist Anzahl und Summen als Kontrollzahlen aus (mit der Quelle abstimmen) und listet übersprungene Zeilen, auch Summenzeilen. Die Auswahl zeigt die Zeilennummer der Quelle und lässt sich als CSV herunterladen (Formelzeichen am Textanfang werden neutralisiert). Nur `.xlsx`, bis 20 MB und 200'000 Zeilen.
+
 Zugang: Passwort (`ADMIN_PASSWORD`, mind. 12 Zeichen) und `AUTH_SECRET` (mind. 32 Zeichen), siehe `.env.example`. Fehlt eine Variable, bleibt alles gesperrt (fail closed). Session-Cookie: HttpOnly, SameSite=Strict, Secure, 8 Stunden; Origin-Prüfung bei schreibenden Anfragen; Security-Header in `next.config.ts`.
 
 Grenzen der Anmeldung: Ein Passwort für alle, keine Benutzerverwaltung. Die Bremse gegen Fehlversuche liegt im Speicher je Server-Instanz und ist auf Vercel nur eine Bremse, kein vollständiger Schutz. Für mehrere Personen oder echte Mandantendaten ist eine richtige Benutzerverwaltung nötig.

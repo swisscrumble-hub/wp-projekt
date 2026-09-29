@@ -13,20 +13,21 @@
     "vercel-build": "node scripts/vercel-build.mjs"
   },
   "devDependencies": {
-    "@types/node": "^22",
-    "tsx": "^4.23.15",
-    "typescript": "^5",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6"
+    "eslint-config-next": "16.3.6",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
   },
   "dependencies": {
+    "lucide-react": "^1.48.0",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "lucide-react": "^1.48.0"
+    "read-excel-file": "^9.3.10"
   }
 }
