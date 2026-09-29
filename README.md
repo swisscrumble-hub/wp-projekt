@@ -2,7 +2,7 @@
 
 Privates Repo. **Keine Mandantendaten, keine Zugangsdaten, keine Prüfungsunterlagen einchecken** (`.gitignore` schliesst `.env*`, `daten/`, `*.xlsx`, `*.csv` aus).
 
-Web-App für automatisierbare Prüfungshandlungen der ordentlichen Revision. Auf jeder Seite wird eine Excel-Datei hochgeladen, daraus werden Stichproben bzw. Prüfhinweise erzeugt. Grundlage ist das Schweizer Handbuch der Wirtschaftsprüfung, Band «Ordentliche Revision» (EXPERTsuisse, HWP OR 2024).
+Web-App für automatisierbare Prüfungshandlungen der ordentlichen Revision. Auf jeder Seite wird eine Excel- oder PDF-Datei hochgeladen, daraus werden Stichproben bzw. Prüfhinweise erzeugt. Grundlage ist das Schweizer Handbuch der Wirtschaftsprüfung, Band «Ordentliche Revision» (EXPERTsuisse, HWP OR 2024).
 
 ## Aufbau
 
@@ -16,9 +16,11 @@ Going Concern ist bewusst nicht enthalten.
 
 Jede Auswahl liefert eine **Dokumentationsnotiz** (Methode, Seed, Umfang, Grundgesamtheit, Randziffer) und einen **CSV-Download** mit der Zeilennummer aus der Quelldatei. Gleicher Seed, gleiche Datei und gleiche Parameter ergeben dieselbe Auswahl.
 
-## Excel-Import
+## Import (Excel und PDF)
 
-`.xlsx` (bis 20 MB, 200'000 Zeilen), im Browser gelesen und **nicht hochgeladen**. Kopfzeile und Spalten werden vorgeschlagen (Beleg, Datum, Konto, Text, Betrag oder Soll/Haben, je nach Seite Erfasser, Freigeber, Buchungsart, Erfassungs-/Freigabedatum) und können korrigiert werden. Filter: Konto, Datum, Mindestbetrag, Buchungsseite (Soll/Haben). Der Import weist Kontrollzahlen aus (Anzahl, Summen) und erlaubt den Abgleich mit dem Hauptbuchsaldo; übersprungene Zeilen (auch Summenzeilen) werden mit Grund gelistet. Fehlt für ein Kriterium eine Spalte, steht es als **«nicht prüfbar»**, nie als «ohne Auffälligkeit».
+**Excel:** `.xlsx` (bis 20 MB, 200'000 Zeilen). **PDF:** Text-PDFs mit Tabellen, z.B. Kontodetails, Saldenlisten, Journalauszüge (bis 20 MB, 500 Seiten). Beides wird im Browser gelesen und **nicht hochgeladen**. Kopfzeile und Spalten werden vorgeschlagen (Beleg, Datum, Konto, Text, Betrag oder Soll/Haben, je nach Seite Erfasser, Freigeber, Buchungsart, Erfassungs-/Freigabedatum) und können korrigiert werden. Filter: Konto, Datum, Mindestbetrag, Buchungsseite (Soll/Haben). Der Import weist Kontrollzahlen aus (Anzahl, Summen) und erlaubt den Abgleich mit dem Hauptbuchsaldo; übersprungene Zeilen (auch Summenzeilen) werden mit Grund gelistet. Fehlt für ein Kriterium eine Spalte, steht es als **«nicht prüfbar»**, nie als «ohne Auffälligkeit».
+
+**PDF im Detail:** Zeilen und Spalten werden aus den Textpositionen abgeleitet (pdf.js). Wiederholte Kopfzeilen je Seite werden entfernt, die **Seitenzahl** je Posten wird in Auswahl und CSV ausgewiesen. Beträge in Klammern oder mit Minus am Ende gelten als negativ (Soll/Haben: Soll − Haben). Die Tabelle ist eine **Näherung**: Spalten, Vorzeichen und Beträge kontrollieren und die Kontrollsumme mit der Quelle abgleichen. **Gescannte PDFs (Bilder) und passwortgeschützte PDFs werden nicht gelesen** (kein OCR); dann Excel-Export verwenden.
 
 ## Wichtige Grenzen
 
@@ -38,7 +40,7 @@ Anmeldung mit `ADMIN_PASSWORD` (mind. 12 Zeichen) und `AUTH_SECRET` (mind. 32 Ze
 
 - `src/lib/hwp/`: Kataloge (Einzelfallprüfungen, Kontrollen) und Quellenangabe
 - `src/lib/pruefung/`: `stichprobe.ts` (Auswahl, MUS, Attribut), `umfang.ts` (Umfang, Hochrechnung), `kontrolle.ts` (Datentests, Stichprobe), `journalpruefung.ts` (Merkmale, Auswahl), `analytik.ts` (Vorjahresvergleich, Regression; derzeit nicht in der Oberfläche)
-- `src/lib/import.ts`, `tabelle.ts`, `dokumentation.ts`: Import, Tabellen, Notiz
+- `src/lib/import.ts`, `pdf.ts`, `tabelle.ts`, `dokumentation.ts`: Import (Excel, PDF), Tabellen, Notiz
 - `src/app/(app)/`: Seiten; `src/components/`: Bausteine
 
 ## Entwicklung

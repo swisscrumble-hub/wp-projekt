@@ -6,11 +6,21 @@
 export class TabellenFehler extends Error {}
 
 export function parseZahl(roh: string): number {
-  let t = roh.trim().replace(/[\s'’]/g, "");
+  let t = roh.trim().replace(/^(chf|eur|usd|fr\.)\s*/i, "").replace(/[\s'’]/g, "");
+  // Negative Beträge: «(123.45)» oder «123.45-» (Buchhaltungs- und PDF-Listen)
+  let negativ = false;
+  const klammer = /^\((.+)\)$/.exec(t);
+  if (klammer) {
+    t = klammer[1]!;
+    negativ = true;
+  } else if (/^[^-].*-$/.test(t)) {
+    t = t.slice(0, -1);
+    negativ = true;
+  }
   if (/^-?\d+,\d+$/.test(t)) t = t.replace(",", ".");
   else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, "");
   if (!/^-?\d+(\.\d+)?$/.test(t)) throw new TabellenFehler(`«${roh.trim()}» ist keine Zahl.`);
-  return Number(t);
+  return negativ ? -Number(t) : Number(t);
 }
 
 export function zeilen(text: string): string[][] {

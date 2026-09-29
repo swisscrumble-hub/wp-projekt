@@ -7,7 +7,7 @@ import { hwpZitat, isaZitat } from "@/lib/hwp/quelle";
 import type { ImportErgebnis, Importiert, Spalten } from "@/lib/import";
 import { istIsoDatum } from "@/lib/pruefung/datum";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
-import ExcelImport from "@/components/ExcelImport";
+import DateiImport from "@/components/DateiImport";
 import Abstimmung from "@/components/Abstimmung";
 import { Daten, Fehler, Feld, Hinweise, Karte, Knopf, Schritt, Tabelle, num } from "@/components/ui";
 
@@ -94,8 +94,8 @@ export default function JournalSeite() {
       </p>
 
       <div className="space-y-3">
-        <Schritt nr={1} titel="Journal als Excel hochladen" />
-        <ExcelImport
+        <Schritt nr={1} titel="Journal als Excel oder PDF hochladen" />
+        <DateiImport
           titel="Buchungsjournal"
           erwartet={{ titel: "Erwarteter Inhalt", spalten: "Belegnummer, Buchungsdatum, Konto, Text, Betrag oder Soll/Haben; für mehr Kriterien: Erfasser, Buchungsart (manuell/automatisch), Erfassungsdatum" }}
           erweitert={["erfasser", "manuell", "erfassungsdatum"]}
