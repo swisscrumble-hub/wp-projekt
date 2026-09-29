@@ -9,7 +9,7 @@ Web-App für automatisierbare Prüfungshandlungen der ordentlichen Revision. Auf
 | Seite | Ablauf | Grundlage |
 |---|---|---|
 | `/einzelfall` **Einzelfallprüfung** | Einzelfallprüfung aus dem Katalog wählen (Aktiven, Passiven, Erfolgsrechnung) → Excel hochladen → Grundgesamtheit abstimmen → Umfang festlegen (MUS-Formel, 95 % Standard) → Stichprobe ziehen → Auswertung (obere Fehlergrenze bzw. Hochrechnung) | HWP Teil III.4.9 (Katalog), III.4.5 (Stichproben), Rz. 792 (Hochrechnung) |
-| `/kontrolle` **Kontrollprüfung** | Kontrolle wählen (Beispielkontrollen je Prozess oder eigene) → Excel mit Vorgängen hochladen → automatische Datenprüfung über alle Vorgänge (Funktionstrennung, Freigabe fehlt, Freigabe verspätet) → Stichprobe über den Prüfzeitraum → Auswertung der Abweichungen | HWP Teil III.4.2 (Funktionsprüfungen), Rz. 303–308, 600–603, 764, 794–796 |
+| `/kontrolle` **Kontrollprüfung** | **IKS-Matrix hochladen (Excel oder PDF) → Prüfplan erzeugen** (je Kontrolle: fällig? Existenzprüfung oder Funktionsprüfung, Umfang, Prüfungshandlungen, CSV-Export; Lücken und fehlende Angaben werden ausgewiesen, nichts wird geraten) → Funktionsprüfung einer Kontrolle übernehmen; oder direkt: Kontrolle wählen (Beispielkontrollen je Prozess oder eigene) → Excel mit Vorgängen hochladen → automatische Datenprüfung über alle Vorgänge (Funktionstrennung, Freigabe fehlt, Freigabe verspätet) → Stichprobe über den Prüfzeitraum → Auswertung der Abweichungen | HWP Teil III.4.2 (Funktionsprüfungen), Rz. 303–308, 600–603, 764, 794–796; Existenzprüfung des IKS Rz. 1398–1422 |
 | `/journal` **Journalprüfung** | Journal als Excel hochladen → Stichtag und Schwellen festlegen → Buchungen nach definierten Merkmalen erhöhten Risikos bewerten → Auswahl (risikobasiert plus Zufallsanteil) | ISA-CH 240 Tz. 33(a), A42–A45 (Merkmale in A44); HWP Teil III.3.9.4.2 Rz. 374–377 |
 
 Going Concern ist bewusst nicht enthalten.
@@ -51,3 +51,13 @@ cp .env.example .env.local   # Werte eintragen, nie committen
 npm run dev
 npm run typecheck && npm run lint && npm test
 ```
+
+## IKS-Matrix und Prüfplan (Kontrollprüfung)
+
+Die Matrix wird im Browser gelesen (Excel `.xlsx` oder PDF mit Text). Erkannt werden Prozess, Risiko(-ID), Kontroll-ID, Kontrolle, Häufigkeit, Kontrollart, Ausführung, Schlüsselkontrolle, Ebene, Nachweis und «zuletzt geprüft»; die Zuordnung der Spalten ist zu bestätigen.
+
+- **Fälligkeit** (HWP Rz. 1409–1410): Kontrollen der Einheit und generelle IT-Kontrollen jährlich; Prozess-Schlüsselkontrollen im Planungszyklus (Standard 3 Jahre, nach «zuletzt geprüft»). Fehlt die Angabe, gilt die Kontrolle als fällig.
+- **Prüfart**: Existenzprüfung (Walk-through, Rz. 1416–1420) oder Funktionsprüfung mit Stichprobe (deckt die Existenz ab, Rz. 1402); je Kontrolle änderbar.
+- **Umfang der Funktionsprüfung**: Staffelung nach Häufigkeit (indikativ; Q&A zur CMS-Prüfung, PS-CH 980, durch den Prüfer zu bestätigen). Ist die Häufigkeit unbekannt, gibt es keine Zahl, sondern den Hinweis, den Umfang von Hand festzulegen.
+- **Nicht geraten**: Fehlende Kontrollart/Ausführung/Schlüsselkontrolle werden als Hinweis ausgewiesen; «halbjährlich» wird mit Hinweis der Stufe «vierteljährlich» zugeordnet; «teilautomatisiert» gilt vorsichtig als manuell. Risiken ohne Kontrolle erscheinen als Lücke.
+- Der Prüfplan ist ein Vorschlag; Schlüsselkontrollen, Ausgestaltung und Verwertbarkeit früherer Prüfungen beurteilt der Prüfer.

@@ -58,3 +58,10 @@ test("Echtes PDF (pdf.js): Import mit Soll/Haben und Seitenangabe", async () => 
 test("Kaputte Datei: verständliche Meldung", async () => {
   await assert.rejects(() => lesePdf(new Uint8Array([1, 2, 3, 4]), pdfjs as unknown as PdfJs), /nicht gelesen werden/);
 });
+
+test("Tabelle aus Positionen: eng gesetzte Spalten (Zellabstand ~0.75 Schrifthöhe) werden getrennt", () => {
+  const z = (y: number, a: string, b: string, c: string): PdfElement[] => [el(1, y, 10, 10 + a.length * 5, a, 12), el(1, y, 10 + a.length * 5 + 9, 10 + a.length * 5 + 9 + b.length * 5, b, 12), el(1, y, 200, 200 + c.length * 5, c, 12)];
+  const t = tabelleAusElementen([...z(700, "Prozess", "Risiko", "Kontrolle"), ...z(680, "Einkauf", "Doppelzahlung", "Zahlungslauf geprüft")]);
+  assert.equal(t.spalten, 3);
+  assert.deepEqual(t.zeilen[1], ["Einkauf", "Doppelzahlung", "Zahlungslauf geprüft"]);
+});

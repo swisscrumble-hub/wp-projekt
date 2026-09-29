@@ -24,7 +24,7 @@ export type PdfTabelle = {
 
 type Zeile = { seite: number; y: number; h: number; zellen: { x0: number; x1: number; text: string }[] };
 
-/** Gruppiert Elemente zu Zeilen (gleiche Grundlinie) und Zellen (Lücke grösser als ~0.9 Schrifthöhe = neue Zelle). */
+/** Gruppiert Elemente zu Zeilen (gleiche Grundlinie) und Zellen (Lücke grösser als ~0.6 Schrifthöhe = neue Zelle). */
 function zeilenBilden(elemente: PdfElement[], lueckeFaktor: number): Zeile[] {
   const zeilen: Zeile[] = [];
   const seiten = [...new Set(elemente.map((e) => e.seite))].sort((a, b) => a - b);
@@ -75,8 +75,13 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 export function tabelleAusElementen(roh: PdfElement[], opt: { lueckeFaktor?: number } = {}): PdfTabelle {
   const elemente = roh.filter((e) => e.text.trim() !== "").map((e) => ({ ...e, text: e.text.trim() }));
   if (elemente.length === 0) throw new PdfFehler("Im PDF wurde kein Text gefunden. Gescannte PDFs (Bilder) werden nicht gelesen, es gibt keine Texterkennung (OCR).");
-  const zeilen = zeilenBilden(elemente, opt.lueckeFaktor ?? 0.9);
-  const spalten = spaltenBilden(zeilen);
+  // Eng gesetzte Tabellen (kleine Zellabstände) brauchen eine feinere Schwelle; Wortabstände liegen bei ~0.3 Schrifthöhe.
+  let zeilen = zeilenBilden(elemente, opt.lueckeFaktor ?? 0.6);
+  let spalten = spaltenBilden(zeilen);
+  if (spalten.length < 2 && opt.lueckeFaktor === undefined) {
+    zeilen = zeilenBilden(elemente, 0.4);
+    spalten = spaltenBilden(zeilen);
+  }
   if (spalten.length < 2) throw new PdfFehler("Im PDF wurde keine Tabelle erkannt (weniger als 2 Spalten). Bitte die Tabelle als Excel exportieren oder eine tabellarische Auswertung verwenden.");
 
   const spalteVon = (x0: number, x1: number): number => {

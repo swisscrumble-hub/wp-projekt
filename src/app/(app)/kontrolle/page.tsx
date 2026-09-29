@@ -8,10 +8,12 @@ import type { ImportErgebnis, Importiert, Spalten } from "@/lib/import";
 import { kontrollDatentests, kontrollStichprobe, type DatentestErgebnis } from "@/lib/pruefung/kontrolle";
 import { attributStichprobenumfang, type AuswahlErgebnis } from "@/lib/pruefung/stichprobe";
 import { kontrollUmfang, type KontrollUmfang } from "@/lib/pruefung/umfang";
+import type { IksKontrolle, Pruefplanzeile } from "@/lib/iks";
 import Abstimmung from "@/components/Abstimmung";
 import AuswahlAnzeige from "@/components/AuswahlAnzeige";
 import DateiImport from "@/components/DateiImport";
 import KontrollAuswertung from "@/components/KontrollAuswertung";
+import MatrixImport from "@/components/MatrixImport";
 import { Auswahl, Fehler, Feld, Hinweise, Karte, Knopf, Schritt, Tabelle } from "@/components/ui";
 
 const ZITAT = hwpZitat([303, 306, 307, 600, 602, 603, 764]);
@@ -35,7 +37,14 @@ export default function KontrollSeite() {
   const [datentests, setDatentests] = useState<{ ergebnisse: DatentestErgebnis[]; hinweise: string[] } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  const k: Kontrolle | undefined = id ? findeKontrolle(id) : undefined;
+  const [matrix, setMatrix] = useState<{ k: IksKontrolle; z: Pruefplanzeile } | null>(null);
+
+  const k: Kontrolle | undefined = useMemo(() => {
+    const basis = id ? findeKontrolle(id) : undefined;
+    if (!basis || !matrix || id !== "eigen") return basis;
+    const m = matrix.k;
+    return { ...basis, wirkung: m.wirkung ?? basis.wirkung, ausfuehrung: m.ausfuehrung ?? basis.ausfuehrung, nachweis: matrix.z.nachweis, datentests: matrix.z.funktion.datentests };
+  }, [id, matrix]);
   const posten: Importiert[] = useMemo(() => quelle?.ergebnis.posten ?? [], [quelle]);
 
   const vorgeschlagen = useMemo(() => {
@@ -52,7 +61,19 @@ export default function KontrollSeite() {
     }
   }, [posten, verfahren, rate, konfidenz, erwartet, haeufigkeit]);
 
+  function ausMatrix(m: IksKontrolle, z: Pruefplanzeile) {
+    waehle("eigen");
+    setMatrix({ k: m, z });
+    setEigenTitel(`${m.id}: ${m.kontrolle}`.slice(0, 200));
+    setHaeufigkeit(m.haeufigkeit ?? "monatlich");
+    setTests(z.funktion.datentests);
+    setNManuell(z.funktion.n ? String(z.funktion.n) : "");
+    setFehler(m.haeufigkeit ? null : "Die Häufigkeit ist in der Matrix nicht angegeben oder nicht erkannt: bitte unten die Häufigkeit wählen bzw. den Umfang von Hand festlegen.");
+    setTimeout(() => document.getElementById("schritt-kontrolle")?.scrollIntoView({ behavior: "smooth" }), 0);
+  }
+
   function waehle(neu: string) {
+    setMatrix(null);
     const c = findeKontrolle(neu)!;
     setId(neu);
     setHaeufigkeit(c.haeufigkeit);
@@ -89,6 +110,12 @@ export default function KontrollSeite() {
           `Kontrollart: ${k.wirkung}, ${k.ausfuehrung}; Prüfungshandlung: ${k.pruefhandlung}`,
           `Umfang: ${nManuell.trim() ? "vom Prüfer festgelegt (Ermessen, Rz. 764)" : verfahren === "staffelung" ? "Staffelung nach Häufigkeit (indikativ, Q&A zur CMS-Prüfung)" : `statistisch, tolerierbare Rate ${Number(rate) * 100} %, Konfidenz ${Number(konfidenz) * 100} %`}`,
           `Nachweis je Vorgang: ${k.nachweis}`,
+          ...(matrix
+            ? [
+                `Quelle: IKS-Matrix, ${matrix.k.seite ? `Seite ${matrix.k.seite}` : `Zeile ${matrix.k.excelZeile}`}; Kontroll-ID ${matrix.k.id}${matrix.k.prozess ? `; Prozess ${matrix.k.prozess}` : ""}${matrix.k.risiken.length ? `; Risiko: ${matrix.k.risiken.join(" | ")}` : ""}`,
+                `Kontrollart laut Matrix: ${matrix.k.wirkung ?? "nicht angegeben"}, ${matrix.k.ausfuehrung ?? "nicht angegeben"}`,
+              ]
+            : []),
           ...(von || bis ? [`Prüfzeitraum: ${von || "–"} bis ${bis || "–"}`] : []),
         ],
         ausgewaehlt: a.ausgewaehlt,
@@ -108,6 +135,9 @@ export default function KontrollSeite() {
         Funktionsprüfungen des internen Kontrollsystems nach HWP OR 2024, Teil III.4.2. Das Handbuch enthält keinen Katalog konkreter Kontrollen; die Kontrollen unten sind Beispiele (eigener Vorschlag) und an das Mandat anzupassen.
       </p>
 
+      <MatrixImport onFunktionspruefung={ausMatrix} />
+
+      <div id="schritt-kontrolle" />
       <Karte titel="1. Kontrolle wählen" norm={`Kontrollarten und Ablauf: ${ZITAT}`}>
         {prozesse.map((p) => (
           <details key={p} open={p === "Einkauf und Kreditoren" || KONTROLLEN.find((c) => c.id === id)?.prozess === p} className="rounded-xl border border-slate-200">
@@ -128,6 +158,7 @@ export default function KontrollSeite() {
         ))}
         {k && (
           <div className="space-y-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-800">
+            {matrix && <Hinweise liste={[`Aus der IKS-Matrix übernommen (${matrix.k.id}).${matrix.k.wirkung && matrix.k.ausfuehrung ? "" : " Kontrollart bzw. Ausführung fehlen in der Matrix und sind hier vorläufig mit dem Standard belegt: bitte bestätigen."}`]} />}
             {k.id === "eigen" && <Feld label="Bezeichnung der Kontrolle" value={eigenTitel} onChange={(e) => setEigenTitel(e.target.value)} />}
             <p>
               <strong>Kontrollart:</strong> {k.wirkung}, {k.ausfuehrung} (Rz. 303–308) · <strong>Prüfungshandlung:</strong> {k.pruefhandlung} (Rz. 603)
