@@ -20,7 +20,7 @@ export default function LoginFormular() {
       body: JSON.stringify({ passwort }),
     });
     if (res.ok) {
-      router.replace("/stichproben");
+      router.replace("/einzelfall");
       router.refresh();
       return;
     }

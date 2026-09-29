@@ -21,7 +21,32 @@ function SpaltenWahl({ label, kopf, wert, onChange }: { label: string; kopf: Zel
   );
 }
 
-export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: ImportErgebnis, dateiname: string) => void }) {
+type Erweitert = "erfasser" | "freigeber" | "manuell" | "erfassungsdatum" | "freigabedatum";
+const ERWEITERT_LABEL: Record<Erweitert, string> = {
+  erfasser: "Erfasser",
+  freigeber: "Freigeber",
+  manuell: "Buchungsart (manuell/automatisch)",
+  erfassungsdatum: "Erfassungsdatum",
+  freigabedatum: "Freigabedatum",
+};
+
+export default function ExcelImport({
+  onUebernehmen,
+  erweitert = [],
+  betragOptional = false,
+  erwartet,
+  voreinstellung,
+  titel = "Excel-Datei importieren",
+}: {
+  onUebernehmen: (e: ImportErgebnis, dateiname: string, spalten: Spalten) => void;
+  erweitert?: Erweitert[];
+  /** Kontrollprüfung: Die Datei darf eine reine Vorgangsliste ohne Beträge sein. */
+  betragOptional?: boolean;
+  /** Was die Datei enthalten soll (Anzeige) */
+  erwartet?: { titel: string; spalten: string };
+  voreinstellung?: { konten?: string; datumVon?: string; datumBis?: string; vorzeichen?: "soll" | "haben" };
+  titel?: string;
+}) {
   const [blaetter, setBlaetter] = useState<Blatt[] | null>(null);
   const [name, setName] = useState("");
   const [blatt, setBlatt] = useState(0);
@@ -29,9 +54,11 @@ export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: Impo
   const [spalten, setSpalten] = useState<Spalten>({});
   const [modus, setModus] = useState<"betrag" | "sollhaben">("betrag");
   const [absolut, setAbsolut] = useState(true);
-  const [konten, setKonten] = useState("");
-  const [von, setVon] = useState("");
-  const [bis, setBis] = useState("");
+  const [konten, setKonten] = useState(voreinstellung?.konten ?? "");
+  const [von, setVon] = useState(voreinstellung?.datumVon ?? "");
+  const [bis, setBis] = useState(voreinstellung?.datumBis ?? "");
+  const [ohneBetrag, setOhneBetrag] = useState(false);
+  const [vorzeichen, setVorzeichen] = useState<"" | "soll" | "haben">(voreinstellung?.vorzeichen ?? "");
   const [minBetrag, setMinBetrag] = useState("");
   const [fehler, setFehler] = useState<string | null>(null);
   const [laedt, setLaedt] = useState(false);
@@ -73,31 +100,46 @@ export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: Impo
   const ergebnis = useMemo(() => {
     if (!blaetter) return null;
     try {
-      const wahl: Spalten = modus === "betrag" ? { ...spalten, soll: undefined, haben: undefined } : { ...spalten, betrag: undefined };
+      const wahl: Spalten = ohneBetrag
+        ? { ...spalten, betrag: undefined, soll: undefined, haben: undefined }
+        : modus === "betrag"
+          ? { ...spalten, soll: undefined, haben: undefined }
+          : { ...spalten, betrag: undefined };
+      const erlaubt = new Set<string>(["id", "betrag", "soll", "haben", "datum", "konto", "text", ...erweitert]);
+      for (const k of Object.keys(wahl) as (keyof Spalten)[]) if (!erlaubt.has(k)) delete wahl[k];
       const min = minBetrag.trim() ? Number(minBetrag.replace(/['’\s]/g, "").replace(",", ".")) : undefined;
       return {
+        spalten: wahl,
         ok: importiere(daten, {
           kopfzeile: kopfNr - 1,
           spalten: wahl,
           absolut,
+          ohneBetrag,
           filter: {
             konten: konten.split(",").map((k) => k.trim()).filter(Boolean),
             datumVon: von || undefined,
             datumBis: bis || undefined,
             minBetrag: min !== undefined && Number.isFinite(min) ? min : undefined,
+            vorzeichen: vorzeichen || undefined,
           },
         }),
       };
     } catch (e) {
       return { fehler: e instanceof Error ? e.message : "Import nicht möglich." };
     }
-  }, [blaetter, daten, kopfNr, spalten, modus, absolut, konten, von, bis, minBetrag]);
+  }, [blaetter, daten, kopfNr, spalten, modus, absolut, konten, von, bis, minBetrag, ohneBetrag, erweitert, vorzeichen]);
 
   const setzeSpalte = (feld: keyof Spalten) => (i?: number) => setSpalten((s) => ({ ...s, [feld]: i }));
   const r = ergebnis && "ok" in ergebnis ? ergebnis.ok : null;
+  const gewaehlteSpalten: Spalten = ergebnis && "spalten" in ergebnis && ergebnis.spalten ? ergebnis.spalten : {};
 
   return (
-    <Karte titel="Excel-Datei importieren (Kontodetails, Buchungsjournal)" norm="Die Datei wird im Browser gelesen und nicht hochgeladen.">
+    <Karte titel={titel} norm="Die Datei wird im Browser gelesen und nicht hochgeladen.">
+      {erwartet && (
+        <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <strong>{erwartet.titel}:</strong> {erwartet.spalten}
+        </p>
+      )}
       <label className="flex min-h-11 w-full cursor-pointer touch-manipulation items-center gap-2 rounded-xl border border-dashed border-slate-400 bg-slate-50 px-4 text-sm font-medium text-slate-800 active:bg-slate-100">
         <FileSpreadsheet className="h-5 w-5" aria-hidden />
         {laedt ? "Wird gelesen …" : name ? `Geladen: ${name} (andere Datei wählen)` : ".xlsx-Datei wählen"}
@@ -124,14 +166,15 @@ export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: Impo
               ))}
             </Auswahl>
             <Feld label="Kopfzeile (Zeilennummer)" inputMode="numeric" value={kopfNr} onChange={(e) => setKopfNr(Math.max(1, Number(e.target.value) || 1))} hilfe="Zeile mit den Spaltentiteln" />
-            <Auswahl label="Betrag aus" value={modus} onChange={(e) => setModus(e.target.value as "betrag" | "sollhaben")}>
+            <Auswahl label="Betrag aus" value={ohneBetrag ? "keiner" : modus} disabled={ohneBetrag} onChange={(e) => setModus(e.target.value as "betrag" | "sollhaben")}>
               <option value="betrag">einer Betragsspalte</option>
               <option value="sollhaben">Soll und Haben (Soll − Haben)</option>
+              <option value="keiner">(keine Beträge)</option>
             </Auswahl>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <SpaltenWahl label="Belegnummer / ID" kopf={kopf} wert={spalten.id} onChange={setzeSpalte("id")} />
-            {modus === "betrag" ? (
+            {ohneBetrag ? null : modus === "betrag" ? (
               <SpaltenWahl label="Betrag" kopf={kopf} wert={spalten.betrag} onChange={setzeSpalte("betrag")} />
             ) : (
               <>
@@ -142,16 +185,32 @@ export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: Impo
             <SpaltenWahl label="Datum" kopf={kopf} wert={spalten.datum} onChange={setzeSpalte("datum")} />
             <SpaltenWahl label="Konto" kopf={kopf} wert={spalten.konto} onChange={setzeSpalte("konto")} />
             <SpaltenWahl label="Text" kopf={kopf} wert={spalten.text} onChange={setzeSpalte("text")} />
+            {erweitert.map((f) => (
+              <SpaltenWahl key={f} label={ERWEITERT_LABEL[f]} kopf={kopf} wert={spalten[f]} onChange={setzeSpalte(f)} />
+            ))}
           </div>
+          {betragOptional && (
+            <label className="flex min-h-11 touch-manipulation items-center gap-3 text-sm text-slate-800">
+              <input type="checkbox" checked={ohneBetrag} onChange={(e) => setOhneBetrag(e.target.checked)} className="h-6 w-6" />
+              Die Datei enthält keine Beträge (reine Vorgangsliste)
+            </label>
+          )}
           <label className="flex min-h-11 touch-manipulation items-center gap-3 text-sm text-slate-800">
             <input type="checkbox" checked={absolut} onChange={(e) => setAbsolut(e.target.checked)} className="h-6 w-6" />
             Beträge als Absolutwert ziehen (Soll und Haben heben sich nicht auf)
           </label>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-3">
             <Feld label="Nur Konto/Konten" value={konten} onChange={(e) => setKonten(e.target.value)} placeholder="z. B. 1020, 1100" hilfe="Kommagetrennt, leer = alle" />
             <Feld label="Datum von" placeholder="2025-01-01" value={von} onChange={(e) => setVon(e.target.value)} />
             <Feld label="Datum bis" placeholder="2025-12-31" value={bis} onChange={(e) => setBis(e.target.value)} />
             <Feld label="Mindestbetrag" inputMode="decimal" value={minBetrag} onChange={(e) => setMinBetrag(e.target.value)} hilfe="Betrag ≥ Wert (absolut)" />
+            {!ohneBetrag && (
+              <Auswahl label="Buchungsseite" value={vorzeichen} onChange={(e) => setVorzeichen(e.target.value as "" | "soll" | "haben")}>
+                <option value="">Soll und Haben</option>
+                <option value="soll">Nur Soll (Betrag positiv)</option>
+                <option value="haben">Nur Haben (Betrag negativ)</option>
+              </Auswahl>
+            )}
           </div>
 
           {ergebnis && "fehler" in ergebnis && <Fehler text={ergebnis.fehler ?? null} />}
@@ -184,7 +243,7 @@ export default function ExcelImport({ onUebernehmen }: { onUebernehmen: (e: Impo
                 kopf={["Zeile", "ID", "Datum", "Konto", "Text", "Betrag"]}
                 zeilen={r.posten.slice(0, 5).map((p) => [p.excelZeile, p.id, p.datum ?? "", p.konto ?? "", p.text ?? "", chf(p.betrag)])}
               />
-              <Knopf disabled={r.posten.length === 0} onClick={() => onUebernehmen(r, name)}>
+              <Knopf disabled={r.posten.length === 0} onClick={() => onUebernehmen(r, name, gewaehlteSpalten)}>
                 Als Grundgesamtheit übernehmen ({r.posten.length} Posten)
               </Knopf>
             </div>

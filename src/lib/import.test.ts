@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import readExcelFile from "read-excel-file/universal";
-import { auswahlAlsCsv, csvZelle, findeKopfzeile, importiere, schlageSpaltenVor, type Zelle } from "./import";
+import { auswahlAlsCsv, csvZelle, findeKopfzeile, importiere, schlageSpaltenVor, zuManuell, type Zelle } from "./import";
 import { TabellenFehler } from "./tabelle";
 import { monetaereAuswahl } from "./pruefung/stichprobe";
 
@@ -86,4 +86,48 @@ test("CSV: Formeleinschleusung wird neutralisiert, Trennzeichen gequotet, BOM un
   assert.ok(csv.startsWith("﻿# Methode: monetaer; Seed: 7"));
   assert.match(csv, /'=cmd\|calc/);
   assert.match(csv, /^7;B-4;B-4;2025-07-01/m);
+});
+
+test("Zusatzfelder: Erfasser, Freigeber, Buchungsart, Erfassungs- und Freigabedatum", () => {
+  const z: Zelle[][] = [
+    ["Beleg", "Betrag", "Erfasser", "Freigegeben von", "Buchungsart", "Erfasst am", "Freigabedatum"],
+    ["A", 100, "mk", "ab", "manuell", "2026-01-05", "2026-01-06"],
+    ["B", 200, "mk", "mk", "Schnittstelle", new Date(Date.UTC(2026, 0, 7)), null],
+    ["C", 300, "xy", null, "unklar", null, null],
+  ];
+  const s = schlageSpaltenVor(z[0]!);
+  assert.deepEqual(s, { id: 0, betrag: 1, erfasser: 2, freigeber: 3, manuell: 4, erfassungsdatum: 5, freigabedatum: 6 });
+  const r = importiere(z, { kopfzeile: 0, spalten: s, absolut: false });
+  assert.deepEqual(r.posten.map((p) => [p.erfasser, p.freigeber, p.manuell, p.erfassungsdatum, p.freigabedatum]), [
+    ["mk", "ab", true, "2026-01-05", "2026-01-06"],
+    ["mk", "mk", false, "2026-01-07", undefined],
+    ["xy", undefined, undefined, undefined, undefined],
+  ]);
+  const csv = auswahlAlsCsv(r.posten, ["A"], { methode: "zufaellig", seed: 1 });
+  assert.match(csv, /Erfasser;Freigeber;Manuell;Erfassungsdatum;Freigabedatum/);
+  assert.match(csv, /mk;ab;ja;2026-01-05;2026-01-06/);
+});
+
+test("Buchungsart: unbekannte Werte werden nie geraten", () => {
+  assert.equal(zuManuell("Ja"), true);
+  assert.equal(zuManuell("System"), false);
+  assert.equal(zuManuell("Sonstiges"), undefined);
+  assert.equal(zuManuell(null), undefined);
+});
+
+test("Vorgangsliste ohne Betrag (Kontrollprüfung): Betrag 0, keine Betragsfehler", () => {
+  const z: Zelle[][] = [["Beleg", "Datum"], ["V-1", "2026-01-05"], ["V-2", "2026-02-05"]];
+  const r = importiere(z, { kopfzeile: 0, spalten: { id: 0, datum: 1 }, absolut: false, ohneBetrag: true });
+  assert.equal(r.posten.length, 2);
+  assert.equal(r.uebersprungen.length, 0);
+  assert.equal(r.posten[0]!.betrag, 0);
+});
+
+test("Buchungsseite: nur Soll oder nur Haben; der Ausschluss wird vermerkt", () => {
+  const z: Zelle[][] = [["Beleg", "Soll", "Haben"], ["A", 100, null], ["B", null, 50], ["C", 30, null], ["D", 0, 0]];
+  const basis = { kopfzeile: 0, spalten: { id: 0, soll: 1, haben: 2 }, absolut: true } as const;
+  assert.deepEqual(importiere(z, { ...basis, filter: { vorzeichen: "soll" } }).posten.map((p) => p.id), ["A", "C"]);
+  const haben = importiere(z, { ...basis, filter: { vorzeichen: "haben" } });
+  assert.deepEqual(haben.posten.map((p) => [p.id, p.betrag, p.buchwert]), [["B", -50, 50]]);
+  assert.match(haben.hinweise.join(" "), /durch die Filter ausgeschlossen/);
 });

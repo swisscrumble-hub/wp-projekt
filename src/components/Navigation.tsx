@@ -5,10 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 const SEITEN = [
-  { href: "/stichproben", name: "Stichproben" },
-  { href: "/analytik", name: "Analytik" },
-  { href: "/betrug", name: "Betrugsrisiko" },
-  { href: "/going-concern", name: "Going Concern" },
+  { href: "/einzelfall", name: "Einzelfallprüfung" },
+  { href: "/kontrolle", name: "Kontrollprüfung" },
+  { href: "/journal", name: "Journalprüfung" },
 ];
 
 export default function Navigation() {
