@@ -20,7 +20,7 @@ export default function LoginFormular() {
       body: JSON.stringify({ passwort }),
     });
     if (res.ok) {
-      router.replace("/einzelfall");
+      router.replace("/dashboard");
       router.refresh();
       return;
     }
